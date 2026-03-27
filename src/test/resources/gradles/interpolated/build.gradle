@@ -1,0 +1,9 @@
+def springVersion = '6.1.14'
+ext.jacksonVersion = "2.18.1"
+
+dependencies {
+    implementation "org.springframework:spring-core:$springVersion"
+    implementation "org.springframework:spring-context:${springVersion}"
+    api "com.fasterxml.jackson.core:jackson-databind:$ext.jacksonVersion"
+    testImplementation "org.junit.jupiter:junit-jupiter-api:${ext.junitVersion ?: '5.11.3'}"
+}

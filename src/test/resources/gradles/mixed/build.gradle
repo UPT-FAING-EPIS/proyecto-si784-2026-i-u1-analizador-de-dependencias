@@ -1,0 +1,18 @@
+dependencies {
+    // String notation
+    implementation 'com.google.guava:guava:33.3.1-jre'
+
+    // Map notation with parens
+    testImplementation(group: 'org.mockito', name: 'mockito-core', version: '5.14.2')
+
+    // Project dependency to ignore
+    implementation project(':core')
+
+    /*
+    Block comment to ignore
+    implementation 'ignore:this:1.0'
+    */
+
+    // Configuration with spaces and tabs
+    api	"org.apache.commons:commons-lang3:3.17.0"
+}

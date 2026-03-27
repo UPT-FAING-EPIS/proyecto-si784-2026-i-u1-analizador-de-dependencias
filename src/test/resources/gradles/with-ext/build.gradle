@@ -1,0 +1,12 @@
+ext {
+    slf4jVersion = '2.0.13'
+    junitVersion = "5.11.3"
+}
+
+ext.postgresVersion = '42.7.4'
+
+dependencies {
+    implementation "org.slf4j:slf4j-api:${slf4jVersion}"
+    testImplementation "org.junit.jupiter:junit-jupiter-api:$junitVersion"
+    runtimeOnly group: 'org.postgresql', name: 'postgresql', version: ext.postgresVersion
+}

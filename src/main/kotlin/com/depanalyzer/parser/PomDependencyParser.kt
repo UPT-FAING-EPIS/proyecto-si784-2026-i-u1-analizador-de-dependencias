@@ -125,7 +125,7 @@ class PomDependencyParser {
             val match = regex.find(resolved) ?: break
             val key = match.groupValues[1]
             val replacement = properties[key] ?: break
-            resolved = resolved.replace($$"${$$key}", replacement)
+            resolved = resolved.replace("\${$key}", replacement)
             guard++
         }
         return resolved

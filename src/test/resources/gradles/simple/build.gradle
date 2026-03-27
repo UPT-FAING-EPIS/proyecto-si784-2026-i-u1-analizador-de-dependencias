@@ -1,0 +1,16 @@
+plugins {
+    id 'java'
+}
+
+group 'com.example'
+version '1.0-SNAPSHOT'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation 'org.slf4j:slf4j-api:2.0.13'
+    testImplementation "org.junit.jupiter:junit-jupiter-api:5.11.3"
+    runtimeOnly 'org.postgresql:postgresql:42.7.4'
+}
