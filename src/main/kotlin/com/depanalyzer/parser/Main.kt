@@ -1,4 +1,4 @@
-package com.depanalyzer
+package com.depanalyzer.com.depanalyzer.parser
 
 fun main() {
     val name = "Kotlin"
