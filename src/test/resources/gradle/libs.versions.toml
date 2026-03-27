@@ -1,0 +1,10 @@
+[versions]
+kotlin = "2.0.21"
+jackson = "2.18.1"
+junit = "5.11.3"
+
+[libraries]
+kotlin-stdlib = { group = "org.jetbrains.kotlin", name = "kotlin-stdlib", version.ref = "kotlin" }
+jackson-databind = { group = "com.fasterxml.jackson.core", name = "jackson-databind", version.ref = "jackson" }
+junit-jupiter = "org.junit.jupiter:junit-jupiter:5.11.3"
+clikt = { group = "com.github.ajalt.clikt", name = "clikt", version = "5.1.0" }
