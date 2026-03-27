@@ -1,0 +1,14 @@
+repositories {
+    mavenCentral()
+    google()
+    maven {
+        url "https://jitpack.io"
+    }
+    maven {
+        url "https://nexus.example.com/repository/maven-private/"
+        credentials {
+            username = System.getenv("NEXUS_USER")
+            password = System.getenv("NEXUS_PASS")
+        }
+    }
+}

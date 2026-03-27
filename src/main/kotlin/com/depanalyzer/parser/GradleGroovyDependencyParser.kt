@@ -1,8 +1,11 @@
 package com.depanalyzer.parser
 
+import com.depanalyzer.repository.ProjectRepository
 import java.io.File
 
-class GradleGroovyDependencyParser {
+class GradleGroovyDependencyParser(
+    private val repoParser: GradleRepositoryParser = GradleRepositoryParser()
+) {
     fun parse(buildFile: File): List<ParsedGradleDependency> {
         require(buildFile.exists() && buildFile.isFile) { "Invalid build.gradle path: ${buildFile.absolutePath}" }
         require(buildFile.name == "build.gradle") { "Expected build.gradle, got ${buildFile.name}" }
@@ -18,6 +21,10 @@ class GradleGroovyDependencyParser {
         }
 
         return result
+    }
+
+    fun repositories(buildFile: File): List<ProjectRepository> {
+        return repoParser.parse(buildFile)
     }
 
     private fun stripBlockComments(content: String): String {

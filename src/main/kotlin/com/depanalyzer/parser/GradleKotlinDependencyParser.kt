@@ -1,8 +1,12 @@
 package com.depanalyzer.parser
 
+import com.depanalyzer.repository.ProjectRepository
 import java.io.File
 
-class GradleKotlinDependencyParser(private val catalog: VersionCatalog = VersionCatalog()) {
+class GradleKotlinDependencyParser(
+    private val catalog: VersionCatalog = VersionCatalog(),
+    private val repoParser: GradleRepositoryParser = GradleRepositoryParser()
+) {
     fun parse(buildFile: File): List<ParsedGradleDependency> {
         require(buildFile.exists() && buildFile.isFile) { "Invalid build.gradle.kts path: ${buildFile.absolutePath}" }
         require(buildFile.name == "build.gradle.kts") { "Expected build.gradle.kts, got ${buildFile.name}" }
@@ -17,6 +21,10 @@ class GradleKotlinDependencyParser(private val catalog: VersionCatalog = Version
         }
 
         return result
+    }
+
+    fun repositories(buildFile: File): List<ProjectRepository> {
+        return repoParser.parse(buildFile)
     }
 
     private fun stripBlockComments(content: String): String {

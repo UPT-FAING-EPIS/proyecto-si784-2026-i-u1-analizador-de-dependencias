@@ -58,6 +58,18 @@ class GradleKotlinDependencyParserTest {
         assertEquals("33.3.1-jre", guava.version)
     }
 
+    @Test
+    fun `extracts repositories from build gradle kts`() {
+        val parser = GradleKotlinDependencyParser()
+        val repos = parser.repositories(resourceFile("gradles/with-repositories/build.gradle.kts"))
+
+        assertEquals(4, repos.size)
+        assertTrue(repos.any { it.url == "https://repo1.maven.org/maven2" })
+        assertTrue(repos.any { it.url == "https://maven.google.com" })
+        assertTrue(repos.any { it.url == "https://jitpack.io" })
+        assertTrue(repos.any { it.url.contains("nexus.example.com") })
+    }
+
     private fun resourceFile(path: String): File {
         val url = this::class.java.classLoader.getResource(path)
         requireNotNull(url) { "Missing test resource: $path" }
