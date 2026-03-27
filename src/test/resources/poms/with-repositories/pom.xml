@@ -1,0 +1,34 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>com.test</groupId>
+    <artifactId>with-repositories</artifactId>
+    <version>1.0.0</version>
+
+    <properties>
+        <jitpack.url>https://jitpack.io</jitpack.url>
+    </properties>
+
+    <repositories>
+        <repository>
+            <id>jitpack</id>
+            <url>${jitpack.url}</url>
+        </repository>
+        <repository>
+            <id>google</id>
+            <url>https://maven.google.com</url>
+            <releases>
+                <enabled>true</enabled>
+            </releases>
+            <snapshots>
+                <enabled>false</enabled>
+            </snapshots>
+        </repository>
+    </repositories>
+
+    <pluginRepositories>
+        <pluginRepository>
+            <id>nexus-private</id>
+            <url>https://nexus.example.com/repository/maven-public/</url>
+        </pluginRepository>
+    </pluginRepositories>
+</project>

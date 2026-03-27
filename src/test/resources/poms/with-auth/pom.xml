@@ -1,0 +1,13 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>com.test</groupId>
+    <artifactId>with-auth</artifactId>
+    <version>1.0.0</version>
+
+    <repositories>
+        <repository>
+            <id>nexus-auth</id>
+            <url>https://nexus.example.com/repository/maven-private/</url>
+        </repository>
+    </repositories>
+</project>

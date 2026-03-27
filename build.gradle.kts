@@ -11,6 +11,7 @@ repositories {
 
 dependencies {
     testImplementation(kotlin("test"))
+    testImplementation("io.mockk:mockk:1.14.9")
     // CLI
     implementation("com.github.ajalt.clikt:clikt:5.1.0")
     // HTTP client

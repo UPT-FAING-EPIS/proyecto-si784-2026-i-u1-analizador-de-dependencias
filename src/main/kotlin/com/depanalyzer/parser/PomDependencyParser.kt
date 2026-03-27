@@ -1,12 +1,16 @@
 package com.depanalyzer.parser
 
+import com.depanalyzer.repository.ProjectRepository
 import org.apache.maven.model.Dependency
 import org.apache.maven.model.Model
+import org.apache.maven.model.Repository
 import org.apache.maven.model.io.xpp3.MavenXpp3Reader
 import java.io.File
 import java.io.FileReader
 
-class PomDependencyParser {
+class PomDependencyParser(
+    private val envProvider: (String) -> String? = { System.getenv(it) }
+) {
     fun parse(pomFile: File): List<ParsedDependency> {
         require(pomFile.exists() && pomFile.isFile) { "Invalid pom file path: ${pomFile.absolutePath}" }
         require(pomFile.name == "pom.xml") { "Expected pom.xml, got ${pomFile.name}" }
@@ -22,10 +26,66 @@ class PomDependencyParser {
             .also(result::addAll)
 
         hierarchy.first().dependencyManagement?.dependencies.orEmpty()
-            .mapNotNull { toParsedDependency(it, DependencySection.DEPENDENCY_MANAGEMENT, allProperties, managedVersions) }
+            .mapNotNull {
+                toParsedDependency(
+                    it,
+                    DependencySection.DEPENDENCY_MANAGEMENT,
+                    allProperties,
+                    managedVersions
+                )
+            }
             .also(result::addAll)
 
         return result
+    }
+
+    fun repositories(pomFile: File): List<ProjectRepository> {
+        require(pomFile.exists() && pomFile.isFile) { "Invalid pom file path: ${pomFile.absolutePath}" }
+        val hierarchy = buildHierarchy(pomFile)
+        val properties = mergeProperties(hierarchy)
+
+        val repositories = mutableMapOf<String, ProjectRepository>()
+
+        hierarchy.forEach { model ->
+            model.repositories.orEmpty().forEach { repo ->
+                val projectRepo = toProjectRepository(repo, properties)
+                if (projectRepo != null) {
+                    repositories.putIfAbsent(projectRepo.id, projectRepo)
+                }
+            }
+            model.pluginRepositories.orEmpty().forEach { repo ->
+                val projectRepo = toProjectRepository(repo, properties)
+                if (projectRepo != null) {
+                    repositories.putIfAbsent(projectRepo.id, projectRepo)
+                }
+            }
+        }
+
+        return if (repositories.isEmpty()) {
+            listOf(ProjectRepository.MAVEN_CENTRAL)
+        } else {
+            repositories.values.toList()
+        }
+    }
+
+    private fun toProjectRepository(repo: Repository, properties: Map<String, String>): ProjectRepository? {
+        val id = repo.id?.trim() ?: return null
+        val url = repo.url?.trim()?.let { resolvePlaceholders(it, properties) } ?: return null
+
+        val releases = repo.releases?.isEnabled?.toString()?.equals("false", true)?.not() ?: true
+        val snapshots = repo.snapshots?.isEnabled?.toString()?.equals("true", true) ?: false
+
+        val username = envProvider("MAVEN_REPO_${id.uppercase().replace("-", "_")}_USERNAME")
+        val password = envProvider("MAVEN_REPO_${id.uppercase().replace("-", "_")}_PASSWORD")
+
+        return ProjectRepository(
+            id = id,
+            url = url,
+            releases = releases,
+            snapshots = snapshots,
+            username = username,
+            password = password
+        )
     }
 
     private fun buildHierarchy(rootPom: File): List<Model> {

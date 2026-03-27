@@ -1,5 +1,7 @@
 package com.depanalyzer.parser
 
+import io.mockk.every
+import io.mockk.mockk
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -37,13 +39,13 @@ class PomDependencyParserTest {
 
         val direct = deps.firstOrNull {
             it.section == DependencySection.DEPENDENCIES &&
-                it.groupId == "com.fasterxml.jackson.core" &&
-                it.artifactId == "jackson-databind"
+                    it.groupId == "com.fasterxml.jackson.core" &&
+                    it.artifactId == "jackson-databind"
         }
         val managed = deps.firstOrNull {
             it.section == DependencySection.DEPENDENCY_MANAGEMENT &&
-                it.groupId == "com.fasterxml.jackson.core" &&
-                it.artifactId == "jackson-databind"
+                    it.groupId == "com.fasterxml.jackson.core" &&
+                    it.artifactId == "jackson-databind"
         }
 
         assertNotNull(direct)
@@ -78,6 +80,51 @@ class PomDependencyParserTest {
     fun `returns compile scope when scope is omitted`() {
         val deps = parser.parse(resourcePom("poms/with-properties/pom.xml"))
         assertTrue(deps.all { it.scope == "compile" })
+    }
+
+    @Test
+    fun `fallbacks to maven central if no repositories are declared`() {
+        val repos = parser.repositories(resourcePom("poms/simple/pom.xml"))
+
+        assertEquals(1, repos.size)
+        assertEquals("central", repos[0].id)
+        assertEquals("https://repo1.maven.org/maven2", repos[0].url)
+    }
+
+    @Test
+    fun `extracts multiple repositories including nexus and jitpack`() {
+        val repos = parser.repositories(resourcePom("poms/with-repositories/pom.xml"))
+
+        assertEquals(3, repos.size)
+
+        val jitpack = repos.find { it.id == "jitpack" }
+        assertNotNull(jitpack)
+        assertEquals("https://jitpack.io", jitpack.url)
+
+        val google = repos.find { it.id == "google" }
+        assertNotNull(google)
+        assertEquals("https://maven.google.com", google.url)
+        assertTrue(google.releases)
+        assertTrue(!google.snapshots)
+
+        val nexus = repos.find { it.id == "nexus-private" }
+        assertNotNull(nexus)
+        assertEquals("https://nexus.example.com/repository/maven-public/", nexus.url)
+    }
+
+    @Test
+    fun `resolves authentication from environment variables`() {
+        val mockEnv = mockk<(String) -> String?>()
+        every { mockEnv("MAVEN_REPO_NEXUS_AUTH_USERNAME") } returns "admin"
+        every { mockEnv("MAVEN_REPO_NEXUS_AUTH_PASSWORD") } returns "secret"
+
+        val authParser = PomDependencyParser(envProvider = mockEnv)
+        val repos = authParser.repositories(resourcePom("poms/with-auth/pom.xml"))
+
+        val nexusAuth = repos.find { it.id == "nexus-auth" }
+        assertNotNull(nexusAuth)
+        assertEquals("admin", nexusAuth.username)
+        assertEquals("secret", nexusAuth.password)
     }
 
     private fun resourcePom(path: String): File {
