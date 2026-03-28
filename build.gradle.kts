@@ -2,6 +2,12 @@ import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
     kotlin("jvm") version "2.3.10"
+    application
+}
+
+application {
+    mainClass.set("com.depanalyzer.cli.DepAnalyzerCliKt")
+    applicationDefaultJvmArgs = listOf("--enable-native-access=ALL-UNNAMED", "-Dfile.encoding=UTF-8")
 }
 
 group = "com.depanalyzer"
@@ -21,6 +27,7 @@ dependencies {
 
     // CLI
     implementation("com.github.ajalt.clikt:clikt:5.1.0")
+    implementation("com.github.ajalt.mordant:mordant:3.0.2")
     // HTTP client
     implementation("com.squareup.okhttp3:okhttp:5.3.2")
     // JSON & XML (Jackson 3.x)
