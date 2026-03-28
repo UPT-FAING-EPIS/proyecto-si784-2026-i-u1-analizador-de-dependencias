@@ -10,21 +10,22 @@
 
 **Proyecto *Analizador de Dependencias Java***
 
-Curso: *Taller de Tesis*
+Curso: *Calidad y Pruebas de Software*
 
-Docente: *{Nombre de Docente}*
+Docente: *Patrick Cuadros Quiroga*
 
 Integrantes:
 
-***{Apellidos y Nombres del Estudiante (Código Universitario)}***
+***Carbajal Vargas, Andre Alejandro (2023077287)*** 
+
+***Yupa Gómez, Fátima Sofía (2023076618)***
 
 **Tacna – Perú**
 
-***2025***
+***2026***
 
 </center>
 
-<div style="page-break-after: always; visibility: hidden">\pagebreak</div>
 
 Sistema *Analizador de Dependencias Java (JavaDepAnalyzer)*
 
@@ -35,9 +36,8 @@ Versión *1.0*
 | CONTROL DE VERSIONES |          |             |             |            |                  |
 |:--------------------:|:---------|:------------|:------------|:-----------|:-----------------|
 | Versión              | Hecha por | Revisada por | Aprobada por | Fecha     | Motivo           |
-| 1.0                  | {Autor}   | {Revisor}    | {Aprobador}  | 2025-01-01 | Versión Original |
+| 1.0                  | {Autor}   | {Revisor}    | {Aprobador}  | 2026-01-01 | Versión Original |
 
-<div style="page-break-after: always; visibility: hidden">\pagebreak</div>
 
 # ÍNDICE GENERAL
 
@@ -54,7 +54,6 @@ Versión *1.0*
 5. [Análisis Financiero](#5-análisis-financiero)
 6. [Conclusiones](#6-conclusiones)
 
-<div style="page-break-after: always; visibility: hidden">\pagebreak</div>
 
 # Informe de Factibilidad
 
@@ -103,7 +102,6 @@ Desarrollar una herramienta de análisis de dependencias para proyectos Java que
 
 6. **Distribuir la herramienta como CLI, interfaz TUI y pipeline CI/CD**, incluyendo una GitHub Action reutilizable, una imagen Docker y una interfaz de terminal interactiva construida con Mordant, para que pueda integrarse en flujos de trabajo individuales y de equipos.
 
-<div style="page-break-after: always; visibility: hidden">\pagebreak</div>
 
 ## 2. Riesgos
 
@@ -117,7 +115,6 @@ Desarrollar una herramienta de análisis de dependencias para proyectos Java que
 | R6 | **Escritura incorrecta en archivos de build**: un error en el módulo de actualización podría corromper el archivo de build del proyecto analizado. | Baja | Alto | Creación obligatoria de backup (`.bak`) antes de cualquier modificación; opción `--dry-run` para previsualizar cambios; suite de tests del módulo updater con archivos reales. |
 | R7 | **Alcance del plugin IntelliJ** potencialmente subestimado para el período de tesis. | Alta | Bajo | El plugin IntelliJ está explícitamente diferido como trabajo post-tesis; no impacta el entregable principal. |
 
-<div style="page-break-after: always; visibility: hidden">\pagebreak</div>
 
 ## 3. Análisis de la Situación Actual
 
@@ -162,7 +159,6 @@ JavaDepAnalyzer busca cubrir este nicho: una herramienta de código abierto, eje
 | NVD REST API | NIST | Gratuito | 5 req/30 seg sin API key; 50 req/30 seg con API key |
 | Maven Central (repos) | Apache | Gratuito | Sin restricciones relevantes |
 
-<div style="page-break-after: always; visibility: hidden">\pagebreak</div>
 
 ## 4. Estudio de Factibilidad
 
@@ -280,7 +276,6 @@ El proyecto es una herramienta de software puro, sin componentes físicos de pro
 
 **Evaluación:** El impacto ambiental del proyecto es despreciable y no presenta conflictos ambientales. **La factibilidad ambiental es ALTA.**
 
-<div style="page-break-after: always; visibility: hidden">\pagebreak</div>
 
 ## 5. Análisis Financiero
 
@@ -363,7 +358,6 @@ Con una inversión inicial muy baja frente al flujo mensual de beneficios estima
 | VAN | S/. 9,493.00 | Aceptado |
 | TIR | No representativa por inversión mínima | Referencial |
 
-<div style="page-break-after: always; visibility: hidden">\pagebreak</div>
 
 ## 6. Conclusiones
 
