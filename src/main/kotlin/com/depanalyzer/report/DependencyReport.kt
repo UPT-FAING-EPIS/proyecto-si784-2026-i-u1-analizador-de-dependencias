@@ -29,11 +29,11 @@ data class VulnerableDependency(
     val artifactId: String,
     val version: String,
     val vulnerabilities: List<Vulnerability>,
-    val dependencyChain: List<String>? = null // chain: direct -> transitive1 -> transitive2
+    val dependencyChain: List<String>? = null
 )
 
 data class Vulnerability(
-    val id: String, // CVE ID or similar
+    val id: String,
     val title: String,
     val description: String?,
     val cvssScore: Double?,

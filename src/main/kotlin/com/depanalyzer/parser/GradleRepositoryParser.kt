@@ -101,8 +101,6 @@ class GradleRepositoryParser(
     }
 
     private fun extractUrl(block: String): String? {
-        // Groovy: url "..." or url '...'
-        // Kotlin: url = uri("...") or url = "..."
         val urlRegex = Regex("""url\s*(?:=|\s*)\s*(?:uri\s*\(\s*)?['"]([^'"]+)['"]""")
         return urlRegex.find(block)?.groupValues?.get(1)
     }

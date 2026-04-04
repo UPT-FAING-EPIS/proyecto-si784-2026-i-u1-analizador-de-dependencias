@@ -22,7 +22,7 @@ class OssIndexClient(
         .connectTimeout(connectTimeoutSeconds, TimeUnit.SECONDS)
         .readTimeout(readTimeoutSeconds, TimeUnit.SECONDS)
         .build(),
-    private val baseUrl: HttpUrl = "https://api.guide.sonatype.com/".toHttpUrl()
+    baseUrl: HttpUrl = "https://api.guide.sonatype.com/".toHttpUrl()
 ) {
     companion object {
         private const val BATCH_SIZE = 128
@@ -108,7 +108,7 @@ class OssIndexClient(
             client.newCall(request).execute().use { response ->
                 when {
                     response.isSuccessful -> {
-                        val body = response.body?.string() ?: throw IOException("Empty response body")
+                        val body = response.body.string()
                         jsonMapper.readValue(body, Array<ComponentReportResponse>::class.java).toList()
                     }
                     response.code == 429 && retries < MAX_RETRIES -> {

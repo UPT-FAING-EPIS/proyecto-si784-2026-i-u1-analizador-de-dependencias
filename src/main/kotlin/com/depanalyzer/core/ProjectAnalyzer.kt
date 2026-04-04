@@ -41,7 +41,6 @@ class ProjectAnalyzer(
         val outdated = mutableListOf<OutdatedDependency>()
         val directDependencies = mutableListOf<ParsedDependency>()
 
-        // Check for latest versions
         dependencies.distinctBy { "${it.groupId}:${it.artifactId}" }.forEach { dep ->
             val currentVersion = dep.version
             if (currentVersion != null && !isVariable(currentVersion)) {
@@ -57,10 +56,8 @@ class ProjectAnalyzer(
             }
         }
 
-        // Consultar vulnerabilidades usando OSS Index
         val vulnerabilityMap = ossIndexClient.getVulnerabilities(dependencies)
 
-        // Clasificar dependencias en vulnerable y seguro
         val (directVulnerable, transitiveVulnerable) = classifyVulnerabilities(
             dependencies = dependencies,
             directDependencies = directDependencies,
@@ -76,12 +73,6 @@ class ProjectAnalyzer(
         )
     }
 
-    /**
-     * Clasifica las dependencias vulnerables en directas y transitivas.
-     * 
-     * Directas: están explícitamente listadas en el archivo de configuración
-     * Transitivas: son dependencias de otras dependencias
-     */
     private fun classifyVulnerabilities(
         dependencies: List<ParsedDependency>,
         directDependencies: List<ParsedDependency>,
@@ -114,24 +105,18 @@ class ProjectAnalyzer(
         return Pair(direct, transitive)
     }
 
-    /**
-     * Construye la cadena de dependencias para una dependencia transitiva.
-     */
     private fun buildDependencyChain(
         targetCoordinates: String,
         allDependencies: List<ParsedDependency>,
         directDependencies: List<ParsedDependency>
     ): List<String>? {
-        // Si es dependencia directa, no hay cadena
         if (directDependencies.any { "${it.groupId}:${it.artifactId}:${it.version}" == targetCoordinates }) {
             return null
         }
 
-        // Encontrar la dependencia vulnerable
         val target = allDependencies.find { "${it.groupId}:${it.artifactId}:${it.version}" == targetCoordinates }
             ?: return null
 
-        // Construir cadena simplificada
         return listOf(target.groupId + ":" + target.artifactId)
     }
 
@@ -152,7 +137,7 @@ class ProjectAnalyzer(
         }
     }
 
-    private fun isVariable(version: String): Boolean = version.startsWith("$") || version.startsWith("${'$'}{")
+    private fun isVariable(version: String): Boolean = version.startsWith("$") || version.startsWith($$"${")
 
     private fun ParsedGradleDependency.toCommon() = ParsedDependency(
         groupId = groupId,

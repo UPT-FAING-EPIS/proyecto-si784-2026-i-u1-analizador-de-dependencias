@@ -32,9 +32,7 @@ class VersionCatalogParser {
         val body = sectionMatch.groupValues[1]
 
         val result = mutableMapOf<String, LibraryInfo>()
-        
-        // Match both inline: alias = "group:artifact:version"
-        // and map: alias = { group = "...", name = "...", version.ref = "..." }
+
         val lines = body.lines().filter { it.contains("=") }
         lines.forEach { line ->
             val parts = line.split("=", limit = 2)

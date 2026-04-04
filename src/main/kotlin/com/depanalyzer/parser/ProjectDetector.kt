@@ -10,7 +10,6 @@ class ProjectDetector {
             throw IllegalArgumentException("The path provided is not a valid directory: $directory")
         }
 
-        // Priority check for project files
         val gradleKotlinFiles = listOf("build.gradle.kts", "settings.gradle.kts")
         if (gradleKotlinFiles.any { File(dirFile, it).exists() }) {
             return ProjectType.GRADLE_KOTLIN

@@ -42,8 +42,7 @@ class RepositoryClient(
                 val body = response.body.string()
                 return xmlMapper.readValue(body, MavenMetadata::class.java)
             }
-        } catch (e: IOException) {
-            // Log or handle error: Repository not available or network error
+        } catch (_: IOException) {
             return null
         }
     }
