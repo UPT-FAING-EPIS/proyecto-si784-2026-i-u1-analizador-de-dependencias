@@ -1,7 +1,8 @@
-package com.depanalyzer.core
+﻿package com.depanalyzer.core
 
 import com.depanalyzer.parser.*
 import com.depanalyzer.report.*
+import com.depanalyzer.repository.OssIndexClient
 import com.depanalyzer.repository.ProjectRepository
 import com.depanalyzer.repository.RepositoryClient
 import java.io.File
@@ -9,7 +10,8 @@ import java.nio.file.Path
 import kotlin.io.path.name
 
 class ProjectAnalyzer(
-    private val repositoryClient: RepositoryClient = RepositoryClient()
+    private val repositoryClient: RepositoryClient = RepositoryClient(),
+    private val ossIndexClient: OssIndexClient = OssIndexClient()
 ) {
     fun analyze(projectDir: Path): DependencyReport {
         val detector = ProjectDetector()
@@ -37,11 +39,13 @@ class ProjectAnalyzer(
 
         val upToDate = mutableListOf<DependencyInfo>()
         val outdated = mutableListOf<OutdatedDependency>()
+        val directDependencies = mutableListOf<ParsedDependency>()
 
         // Check for latest versions
         dependencies.distinctBy { "${it.groupId}:${it.artifactId}" }.forEach { dep ->
             val currentVersion = dep.version
             if (currentVersion != null && !isVariable(currentVersion)) {
+                directDependencies.add(dep)
                 val latest = findLatestVersion(repositories, dep.groupId, dep.artifactId)
                 if (latest != null && latest != currentVersion) {
                     outdated.add(OutdatedDependency(dep.groupId, dep.artifactId, currentVersion, latest))
@@ -53,11 +57,82 @@ class ProjectAnalyzer(
             }
         }
 
+        // Consultar vulnerabilidades usando OSS Index
+        val vulnerabilityMap = ossIndexClient.getVulnerabilities(dependencies)
+
+        // Clasificar dependencias en vulnerable y seguro
+        val (directVulnerable, transitiveVulnerable) = classifyVulnerabilities(
+            dependencies = dependencies,
+            directDependencies = directDependencies,
+            vulnerabilityMap = vulnerabilityMap
+        )
+
         return DependencyReport(
             projectName = projectDir.name,
             upToDate = upToDate,
-            outdated = outdated
+            outdated = outdated,
+            directVulnerable = directVulnerable,
+            transitiveVulnerable = transitiveVulnerable
         )
+    }
+
+    /**
+     * Clasifica las dependencias vulnerables en directas y transitivas.
+     * 
+     * Directas: están explícitamente listadas en el archivo de configuración
+     * Transitivas: son dependencias de otras dependencias
+     */
+    private fun classifyVulnerabilities(
+        dependencies: List<ParsedDependency>,
+        directDependencies: List<ParsedDependency>,
+        vulnerabilityMap: Map<String, List<Vulnerability>>
+    ): Pair<List<VulnerableDependency>, List<VulnerableDependency>> {
+        val direct = mutableListOf<VulnerableDependency>()
+        val transitive = mutableListOf<VulnerableDependency>()
+
+        val directCoordinates = directDependencies.map { "${it.groupId}:${it.artifactId}:${it.version}" }.toSet()
+
+        vulnerabilityMap.forEach { (coordinates, vulnerabilities) ->
+            val dep = dependencies.find { "${it.groupId}:${it.artifactId}:${it.version}" == coordinates }
+                ?: return@forEach
+
+            val vulnerableDep = VulnerableDependency(
+                groupId = dep.groupId,
+                artifactId = dep.artifactId,
+                version = dep.version!!,
+                vulnerabilities = vulnerabilities,
+                dependencyChain = buildDependencyChain(coordinates, dependencies, directDependencies)
+            )
+
+            if (coordinates in directCoordinates) {
+                direct.add(vulnerableDep)
+            } else {
+                transitive.add(vulnerableDep)
+            }
+        }
+
+        return Pair(direct, transitive)
+    }
+
+    /**
+     * Construye la cadena de dependencias para una dependencia transitiva.
+     */
+    private fun buildDependencyChain(
+        targetCoordinates: String,
+        allDependencies: List<ParsedDependency>,
+        directDependencies: List<ParsedDependency>
+    ): List<String>? {
+        // Si es dependencia directa, no hay cadena
+        if (directDependencies.any { "${it.groupId}:${it.artifactId}:${it.version}" == targetCoordinates }) {
+            return null
+        }
+
+        // Encontrar la dependencia vulnerable
+        val target = allDependencies.find { "${it.groupId}:${it.artifactId}:${it.version}" == targetCoordinates }
+            ?: return null
+
+        // Construir cadena simplificada
+        return listOf(target.groupId + ":" + target.artifactId)
     }
 
     private fun findLatestVersion(repos: List<ProjectRepository>, groupId: String, artifactId: String): String? {
