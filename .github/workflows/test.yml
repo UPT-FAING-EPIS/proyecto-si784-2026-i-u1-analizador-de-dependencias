@@ -9,6 +9,9 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      GRADLE_OPTS: "-Xmx2g -XX:MaxMetaspaceSize=512m"
+      OSS_INDEX_TOKEN: ${{ secrets.OSS_INDEX_TOKEN }}
     steps:
     - uses: actions/checkout@v4
     

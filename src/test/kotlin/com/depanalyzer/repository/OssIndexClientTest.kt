@@ -3,6 +3,7 @@
 import com.depanalyzer.parser.DependencySection
 import com.depanalyzer.parser.ParsedDependency
 import com.depanalyzer.report.VulnerabilitySeverity
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
@@ -60,8 +61,12 @@ class OssIndexClientTest {
             .readTimeout(5, TimeUnit.SECONDS)
             .build()
         
-        // Create a client that points to mock server
-        client = OssIndexClient(connectTimeoutSeconds = 5, readTimeoutSeconds = 5, client = mockClient)
+        client = OssIndexClient(
+            connectTimeoutSeconds = 5,
+            readTimeoutSeconds = 5,
+            client = mockClient,
+            baseUrl = mockWebServer.url("/")
+        )
         
         val dependencies = listOf(
             ParsedDependency(
@@ -160,7 +165,8 @@ class OssIndexClientTest {
             client = OkHttpClient.Builder()
                 .connectTimeout(5, TimeUnit.SECONDS)
                 .readTimeout(5, TimeUnit.SECONDS)
-                .build()
+                .build(),
+            baseUrl = mockWebServer.url("/")
         )
 
         val dependencies = listOf(
@@ -192,7 +198,8 @@ class OssIndexClientTest {
             client = OkHttpClient.Builder()
                 .connectTimeout(5, TimeUnit.SECONDS)
                 .readTimeout(5, TimeUnit.SECONDS)
-                .build()
+                .build(),
+            baseUrl = mockWebServer.url("/")
         )
 
         val dependencies = listOf(
@@ -262,7 +269,8 @@ class OssIndexClientTest {
             client = OkHttpClient.Builder()
                 .connectTimeout(5, TimeUnit.SECONDS)
                 .readTimeout(5, TimeUnit.SECONDS)
-                .build()
+                .build(),
+            baseUrl = mockWebServer.url("/")
         )
 
         val dependencies = listOf(

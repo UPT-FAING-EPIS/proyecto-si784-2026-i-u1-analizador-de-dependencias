@@ -2,6 +2,8 @@
 
 import com.depanalyzer.parser.ParsedDependency
 import com.depanalyzer.report.Vulnerability
+import okhttp3.HttpUrl
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -19,14 +21,18 @@ class OssIndexClient(
     private val client: OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(connectTimeoutSeconds, TimeUnit.SECONDS)
         .readTimeout(readTimeoutSeconds, TimeUnit.SECONDS)
-        .build()
+        .build(),
+    private val baseUrl: HttpUrl = "https://api.guide.sonatype.com/".toHttpUrl()
 ) {
     companion object {
-        private const val API_URL = "https://api.guide.sonatype.com/api/v3/component-report"
         private const val BATCH_SIZE = 128
         private const val MAX_RETRIES = 3
         private const val INITIAL_BACKOFF_MS = 1000L
     }
+
+    private val componentReportUrl: HttpUrl = baseUrl.newBuilder()
+        .addPathSegments("api/v3/component-report")
+        .build()
 
     private val jsonMapper = JsonMapper.builder()
         .addModule(KotlinModule.Builder().build())
@@ -85,7 +91,7 @@ class OssIndexClient(
         ).toRequestBody("application/json".toMediaType())
 
         val requestBuilder = Request.Builder()
-            .url(API_URL)
+            .url(componentReportUrl)
             .post(requestBody)
 
         if (token != null) {
@@ -102,7 +108,7 @@ class OssIndexClient(
             client.newCall(request).execute().use { response ->
                 when {
                     response.isSuccessful -> {
-                        val body = response.body!!.string()
+                        val body = response.body?.string() ?: throw IOException("Empty response body")
                         jsonMapper.readValue(body, Array<ComponentReportResponse>::class.java).toList()
                     }
                     response.code == 429 && retries < MAX_RETRIES -> {
