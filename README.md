@@ -43,6 +43,8 @@ El analizador usa [Sonatype OSS Index](https://ossindex.sonatype.org/) para dete
 
 ### Configurar el token
 
+El token de OSS Index se puede proporcionar de dos formas:
+
 #### Opción 1: Variable de entorno (Recomendado)
 
 **Linux/macOS:**
@@ -66,7 +68,25 @@ set OSS_INDEX_TOKEN=tu_token_aqui
 ./build/install/depanalyzer/bin/depanalyzer.bat analyze .
 ```
 
-#### Opción 2: Archivo `.env` (Para desarrollo local)
+#### Opción 2: Parámetro de línea de comandos
+
+Puedes pasar el token directamente como parámetro CLI usando `--oss-index-token`:
+
+**Linux/macOS:**
+
+```bash
+./build/install/depanalyzer/bin/depanalyzer --oss-index-token "tu_token_aqui" analyze .
+```
+
+**Windows:**
+
+```powershell
+./build/install/depanalyzer/bin/depanalyzer.bat --oss-index-token "tu_token_aqui" analyze .
+```
+
+**Precedencia:** Si se proporciona ambos (variable de entorno y parámetro CLI), el parámetro CLI tiene prioridad.
+
+#### Opción 3: Archivo `.env` (Para desarrollo local)
 
 Crea un archivo `.env` en la raíz del proyecto:
 
@@ -94,24 +114,6 @@ Get-Content .env | ForEach-Object {
 }
 ./gradlew run
 ```
-
-#### Opción 3: CI/CD (GitHub Actions)
-
-Configura el token como un secret en tu repositorio:
-
-1. Dirígete a **Settings** → **Secrets and variables** → **Actions**
-2. Haz clic en **New repository secret**
-3. Nombre: `OSS_INDEX_TOKEN`
-4. Valor: Pega tu token
-5. El workflow automáticamente leerá la variable
-
-### Notas de seguridad
-
-⚠️ **IMPORTANTE:**
-
-- Nunca commitees tu token a Git
-- No compartas tu token públicamente
-- Los tokens en GitHub Actions están protegidos como secrets
 
 ## Instalación para Pruebas
 
@@ -146,24 +148,66 @@ Analiza un proyecto en el directorio especificado:
 
 El comando `analyze` acepta las siguientes opciones:
 
-| Opción                | Descripción                                                                |
-|:----------------------|:---------------------------------------------------------------------------|
-| `<path>`              | **(Requerido)** Ruta al directorio raíz del proyecto a analizar (ej: `.`). |
-| `-o`, `--output json` | Cambia el formato de salida a JSON (útil para automatización).             |
-| `--no-color`          | Desactiva los colores ANSI y estilos en la consola (útil para CI/CD).      |
-| `-h`, `--help`        | Muestra la ayuda del comando y las opciones disponibles.                   |
+| Opción                    | Descripción                                                                                                      |
+|:--------------------------|:-----------------------------------------------------------------------------------------------------------------|
+| `<path>`                  | **(Requerido)** Ruta al directorio raíz del proyecto a analizar (ej: `.`).                                       |
+| `-t`, `--oss-index-token` | Token de autenticación para OSS Index API. Si no se proporciona, busca la variable de entorno `OSS_INDEX_TOKEN`. |
+| `-o`, `--output json`     | Cambia el formato de salida a JSON (útil para automatización).                                                   |
+| `--no-color`              | Desactiva los colores ANSI y estilos en la consola (útil para CI/CD).                                            |
+| `-v`, `--verbose`         | Modo detallado - muestra la estructura completa del modelo con tabla detallada de vulnerabilidades.              |
+| `-h`, `--help`            | Muestra la ayuda del comando y las opciones disponibles.                                                         |
 
 ### Ejemplos
 
 ```bash
 # Analizar el proyecto actual con colores
-./build/install/depanalyzer/bin/depanalyzer.bat analyze .
+./build/install/depanalyzer/bin/depanalyzer analyze .
 
 # Generar un reporte en formato JSON
-./build/install/depanalyzer/bin/depanalyzer.bat analyze . --output json
+./build/install/depanalyzer/bin/depanalyzer analyze . --output json
+
+# Modo verbose - mostrar tabla detallada de vulnerabilidades
+./build/install/depanalyzer/bin/depanalyzer analyze . --verbose
+
+# Modo verbose con JSON (estructura completa del modelo)
+./build/install/depanalyzer/bin/depanalyzer analyze . --verbose --output json
+
+# Usar token por línea de comandos (versión larga)
+./build/install/depanalyzer/bin/depanalyzer --oss-index-token "tu_token" analyze .
+
+# Usar token por línea de comandos (versión corta)
+./build/install/depanalyzer/bin/depanalyzer -t "tu_token" analyze .
+
+# Combinar token + verbose (versión corta)
+./build/install/depanalyzer/bin/depanalyzer -t "tu_token" -v analyze .
+
+# Combinar token + verbose + JSON (versión corta)
+./build/install/depanalyzer/bin/depanalyzer -t "tu_token" -v -o json analyze .
 
 # Analizar un proyecto en otra ruta sin colores
-./build/install/depanalyzer/bin/depanalyzer.bat analyze C:/MisProyectos/JavaApp --no-color
+./build/install/depanalyzer/bin/depanalyzer analyze C:/MisProyectos/JavaApp --no-color
+```
+
+### Modo Verbose
+
+El parámetro `--verbose` (o `-v`) muestra información detallada del modelo interno de vulnerabilidades:
+
+- **Tabla detallada en consola:** Presenta todas las vulnerabilidades en una tabla con columnas para CVE ID, Severity,
+  CVSS Score, Source, Retrieved At, y Affected Dependency.
+- **JSON con estructura completa:** Cuando se usa con `-o json`, incluye todos los campos internos del modelo (source,
+  timestamp de recuperación, etc.).
+
+Ejemplos:
+
+```bash
+# Ver vulnerabilidades en tabla detallada (colores preservados)
+./build/install/depanalyzer/bin/depanalyzer analyze . --verbose
+
+# Exportar estructura completa como JSON
+./build/install/depanalyzer/bin/depanalyzer analyze . --verbose --output json
+
+# Modo verbose sin colores (útil para piping o CI/CD)
+./build/install/depanalyzer/bin/depanalyzer analyze . --verbose --no-color
 ```
 
 ## Desarrollo y Tests

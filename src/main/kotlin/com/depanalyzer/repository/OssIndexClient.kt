@@ -1,6 +1,7 @@
 ﻿package com.depanalyzer.repository
 
 import com.depanalyzer.parser.ParsedDependency
+import com.depanalyzer.report.AffectedDependency
 import com.depanalyzer.report.Vulnerability
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
@@ -62,8 +63,16 @@ class OssIndexClient(
                 val reports = queryBatch(batch)
                 reports.forEach { report ->
                     if (report.vulnerabilities.isNotEmpty()) {
-                        val vulnerabilities = report.vulnerabilities.map { it.toVulnerability() }
-                        
+                        // Parse Maven coordinates to extract groupId, artifactId, version
+                        val affectedDependency = parseAffectedDependency(report.coordinates)
+
+                        val vulnerabilities = report.vulnerabilities.map { ossVuln ->
+                            ossVuln.toVulnerability(
+                                affectedDependency = affectedDependency,
+                                retrievedAt = java.time.Instant.now()
+                            )
+                        }
+
                         var coordinateKey = report.coordinates
                         if (coordinateKey.startsWith("pkg:maven/")) {
                             val cleanPurl = coordinateKey.substringBefore("?")
@@ -72,7 +81,7 @@ class OssIndexClient(
                                 coordinateKey = "${parts[0]}:${parts[1]}:${parts[2]}"
                             }
                         }
-                        
+
                         result[coordinateKey] = vulnerabilities
                     }
                 }
@@ -111,15 +120,18 @@ class OssIndexClient(
                         val body = response.body.string()
                         jsonMapper.readValue(body, Array<ComponentReportResponse>::class.java).toList()
                     }
+
                     response.code == 429 && retries < MAX_RETRIES -> {
                         val backoffMs = INITIAL_BACKOFF_MS * (2.0.pow(retries.toDouble())).toLong()
                         System.err.println("⏳ Rate limit (429). Esperando ${backoffMs}ms antes de reintentar...")
                         Thread.sleep(backoffMs)
                         performRequest(request, retries + 1)
                     }
+
                     response.code == 429 -> {
                         throw IOException("OSS Index rate limit (429) - reintentos agotados")
                     }
+
                     else -> {
                         throw IOException("OSS Index error: HTTP ${response.code}")
                     }
@@ -133,5 +145,37 @@ class OssIndexClient(
     private fun isVariableVersion(version: String): Boolean {
         val dollarSign = "$"
         return version.startsWith(dollarSign) || version.startsWith(dollarSign + "{")
+    }
+
+    private fun parseAffectedDependency(coordinates: String): AffectedDependency {
+        try {
+            val cleanCoords = coordinates.substringBefore("?")
+
+            // Try PURL format first
+            if (cleanCoords.startsWith("pkg:maven/")) {
+                val parts = cleanCoords.substringAfter("pkg:maven/").split("/", "@")
+                if (parts.size == 3) {
+                    return AffectedDependency(
+                        groupId = parts[0],
+                        artifactId = parts[1],
+                        version = parts[2]
+                    )
+                }
+            }
+
+            // Try Maven Central format (groupId:artifactId:version)
+            val parts = cleanCoords.split(":")
+            if (parts.size == 3) {
+                return AffectedDependency(
+                    groupId = parts[0],
+                    artifactId = parts[1],
+                    version = parts[2]
+                )
+            }
+
+            throw IllegalArgumentException("Unable to parse coordinates: $coordinates")
+        } catch (e: Exception) {
+            throw IllegalArgumentException("Failed to parse Maven coordinates from: $coordinates", e)
+        }
     }
 }

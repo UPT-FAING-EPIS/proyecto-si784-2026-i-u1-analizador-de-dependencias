@@ -31,15 +31,3 @@ data class VulnerableDependency(
     val vulnerabilities: List<Vulnerability>,
     val dependencyChain: List<String>? = null
 )
-
-data class Vulnerability(
-    val id: String,
-    val title: String,
-    val description: String?,
-    val cvssScore: Double?,
-    val severity: VulnerabilitySeverity
-)
-
-enum class VulnerabilitySeverity {
-    LOW, MEDIUM, HIGH, CRITICAL, UNKNOWN
-}

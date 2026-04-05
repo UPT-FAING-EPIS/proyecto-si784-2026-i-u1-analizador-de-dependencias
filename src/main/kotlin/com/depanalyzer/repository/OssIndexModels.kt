@@ -1,9 +1,12 @@
 package com.depanalyzer.repository
 
+import com.depanalyzer.report.AffectedDependency
 import com.depanalyzer.report.Vulnerability
 import com.depanalyzer.report.VulnerabilitySeverity
+import com.depanalyzer.report.VulnerabilitySource
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import com.fasterxml.jackson.annotation.JsonProperty
+import java.time.Instant
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 data class ComponentReportResponse(
@@ -23,22 +26,20 @@ data class OssIndexVulnerability(
     val reference: String? = null
 )
 
-fun OssIndexVulnerability.toVulnerability(): Vulnerability {
-    val severity = calculateSeverity(cvssScore)
+fun OssIndexVulnerability.toVulnerability(
+    affectedDependency: AffectedDependency,
+    retrievedAt: Instant = Instant.now()
+): Vulnerability {
+    val severity = VulnerabilitySeverity.fromCvssScore(cvssScore)
     return Vulnerability(
-        id = id,
-        title = title,
-        description = description,
+        cveId = id,
+        severity = severity,
         cvssScore = cvssScore,
-        severity = severity
+        description = description,
+        affectedDependency = affectedDependency,
+        source = VulnerabilitySource.OSS_INDEX,
+        retrievedAt = retrievedAt,
+        referenceUrl = reference
     )
-}
-
-fun calculateSeverity(cvssScore: Double?): VulnerabilitySeverity = when {
-    cvssScore == null -> VulnerabilitySeverity.UNKNOWN
-    cvssScore >= 9.0 -> VulnerabilitySeverity.CRITICAL
-    cvssScore >= 7.0 -> VulnerabilitySeverity.HIGH
-    cvssScore >= 4.0 -> VulnerabilitySeverity.MEDIUM
-    else -> VulnerabilitySeverity.LOW
 }
 

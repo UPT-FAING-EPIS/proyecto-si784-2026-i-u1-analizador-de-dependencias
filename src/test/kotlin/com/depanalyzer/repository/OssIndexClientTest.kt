@@ -85,7 +85,7 @@ class OssIndexClientTest {
         
         val vulns = vulnerabilities["org.slf4j:slf4j-api:1.7.26"]!!
         assertEquals(1, vulns.size)
-        assertEquals("CVE-2021-23463", vulns[0].id)
+        assertEquals("CVE-2021-23463", vulns[0].cveId)
         assertEquals(9.8, vulns[0].cvssScore)
         assertEquals(VulnerabilitySeverity.CRITICAL, vulns[0].severity)
     }
@@ -283,14 +283,12 @@ class OssIndexClientTest {
         assertEquals(2, vulns.size)
         
         // Primera vulnerabilidad
-        assertEquals("CVE-2022-25857", vulns[0].id)
-        assertEquals("Denial of Service", vulns[0].title)
+        assertEquals("CVE-2022-25857", vulns[0].cveId)
         assertEquals(7.5, vulns[0].cvssScore)
         assertTrue(vulns[0].description!!.contains("SnakeYAML"))
         
         // Segunda vulnerabilidad
-        assertEquals("CVE-2021-4104", vulns[1].id)
-        assertEquals("Code Injection", vulns[1].title)
+        assertEquals("CVE-2021-4104", vulns[1].cveId)
         assertEquals(8.1, vulns[1].cvssScore)
     }
 
