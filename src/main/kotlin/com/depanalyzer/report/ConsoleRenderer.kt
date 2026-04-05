@@ -12,7 +12,7 @@ class ConsoleRenderer(noColor: Boolean = false) {
         ansiLevel = if (noColor) AnsiLevel.NONE else AnsiLevel.TRUECOLOR
     )
 
-    fun render(report: DependencyReport) {
+    fun render(report: DependencyReport, showChains: Boolean = false, detailedChains: Boolean = false) {
         terminal.println(bold("===================================================="))
         terminal.println(bold("Análisis de Dependencias: ") + blue(report.projectName))
         terminal.println(bold("===================================================="))
@@ -20,10 +20,13 @@ class ConsoleRenderer(noColor: Boolean = false) {
 
         renderVulnerabilities(report)
         renderOutdated(report)
+        if (showChains && report.vulnerabilityChains.isNotEmpty()) {
+            renderVulnerabilityChains(report, detailedChains)
+        }
         renderSummary(report)
     }
 
-    fun renderVerbose(report: DependencyReport) {
+    fun renderVerbose(report: DependencyReport, showChains: Boolean = false, detailedChains: Boolean = false) {
         terminal.println(bold("===================================================="))
         terminal.println(bold("Análisis de Dependencias: ") + blue(report.projectName))
         terminal.println(bold("===================================================="))
@@ -31,6 +34,9 @@ class ConsoleRenderer(noColor: Boolean = false) {
 
         renderVulnerabilitiesVerbose(report)
         renderOutdated(report)
+        if (showChains && report.vulnerabilityChains.isNotEmpty()) {
+            renderVulnerabilityChains(report, detailedChains)
+        }
         renderSummary(report)
     }
 
@@ -122,6 +128,59 @@ class ConsoleRenderer(noColor: Boolean = false) {
         }
 
         terminal.println(bold("===================================================="))
+    }
+
+    private fun renderVulnerabilityChains(report: DependencyReport, detailed: Boolean = false) {
+        terminal.println(bold(cyan("CADENAS DE VULNERABILIDADES")))
+        terminal.println(cyan("---------------------------"))
+
+        if (report.vulnerabilityChains.isEmpty()) {
+            terminal.println("No vulnerability chains found")
+            return
+        }
+
+        // Group by direct dependency first
+        report.vulnerabilityChains.groupBy { it.directDependency.id }.forEach { (directDepId, chainsForDirect) ->
+            terminal.println(bold("De: ") + yellow(directDepId))
+            
+            // Group by signature (direct + vulnerable + cveSet) to identify alternative paths
+            data class ChainSignature(
+                val vulnerableNodeId: String,
+                val cveSet: Set<String>
+            )
+            
+            val signatureMap = chainsForDirect.groupBy { chain ->
+                ChainSignature(
+                    vulnerableNodeId = chain.vulnerableNode.id,
+                    cveSet = chain.cveIds.toSet()
+                )
+            }
+            
+            // For each unique signature, show only the shortest path with alternative count
+            signatureMap.forEach { (_, pathsWithSameSignature) ->
+                // Find shortest path (by chain size)
+                val shortestPath = pathsWithSameSignature.minByOrNull { it.chain.size }
+                    ?: return@forEach
+                
+                val marker = cyan("✓")
+                val chainPath = shortestPath.chain.joinToString(" → ") { it.coordinate }
+                terminal.println("  $marker $chainPath")
+                
+                // Show alternative paths note if there are multiple paths with same signature
+                if (pathsWithSameSignature.size > 1) {
+                    val alternativeCount = pathsWithSameSignature.size - 1
+                    terminal.println(gray("    📌 +$alternativeCount alternative path${if (alternativeCount > 1) "s" else ""} (all longer)"))
+                }
+                
+                if (detailed) {
+                    shortestPath.vulnerabilities.forEach { vuln ->
+                        val color = severityColor(vuln.severity)
+                        terminal.println("    - " + color("[${vuln.severity}] ${vuln.cveId}"))
+                    }
+                }
+            }
+            terminal.println()
+        }
     }
 
     private fun severityColor(severity: VulnerabilitySeverity): TextStyle {

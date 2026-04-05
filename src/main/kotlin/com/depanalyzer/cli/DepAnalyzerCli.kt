@@ -38,6 +38,14 @@ class Analyze : CliktCommand() {
         "--verbose",
         help = "Modo detallado - muestra estructura completa del modelo"
     ).flag()
+    private val showChains: Boolean by option(
+        "--show-chains",
+        help = "Muestra cadenas de vulnerabilidades (paths desde directas a vulnerables)"
+    ).flag()
+    private val chainDetail: Boolean by option(
+        "--chain-detail",
+        help = "Muestra detalles completos de cadenas (requiere --show-chains)"
+    ).flag()
 
     override fun run() {
         echo("Iniciando análisis en $path...")
@@ -48,7 +56,7 @@ class Analyze : CliktCommand() {
         )
 
         val report = try {
-            analyzer.analyze(path)
+            analyzer.analyze(path, includeChains = showChains)
         } catch (e: Exception) {
             echo("Error durante el análisis: ${e.message}", err = true)
             return
@@ -67,12 +75,12 @@ class Analyze : CliktCommand() {
 
             verbose -> {
                 val renderer = ConsoleRenderer(noColor = noColor)
-                renderer.renderVerbose(report)
+                renderer.renderVerbose(report, showChains = showChains, detailedChains = chainDetail)
             }
 
             else -> {
                 val renderer = ConsoleRenderer(noColor = noColor)
-                renderer.render(report)
+                renderer.render(report, showChains = showChains, detailedChains = chainDetail)
             }
         }
     }

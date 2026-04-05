@@ -1,5 +1,7 @@
 ﻿package com.depanalyzer.core
 
+import com.depanalyzer.core.graph.ChainResolver
+import com.depanalyzer.core.graph.DependencyGraphBuilder
 import com.depanalyzer.parser.*
 import com.depanalyzer.report.*
 import com.depanalyzer.repository.OssIndexClient
@@ -13,7 +15,7 @@ class ProjectAnalyzer(
     private val repositoryClient: RepositoryClient = RepositoryClient(),
     private val ossIndexClient: OssIndexClient = OssIndexClient()
 ) {
-    fun analyze(projectDir: Path): DependencyReport {
+    fun analyze(projectDir: Path, includeChains: Boolean = false): DependencyReport {
         val detector = ProjectDetector()
         val type = detector.detect(projectDir)
         val dirFile = projectDir.toFile()
@@ -56,7 +58,15 @@ class ProjectAnalyzer(
             }
         }
 
-        val vulnerabilityMap = ossIndexClient.getVulnerabilities(dependencies)
+        val vulnerabilityMap = try {
+            ossIndexClient.getVulnerabilities(dependencies)
+        } catch (e: Exception) {
+            System.err.println("⚠️ Warning: OSS Index authentication failed (401). Vulnerability analysis skipped. Please set OSS_INDEX_USER and OSS_INDEX_TOKEN to enable.")
+            if (e.message != null) {
+                System.err.println("  Details: ${e.message}")
+            }
+            emptyMap()
+        }
 
         val (directVulnerable, transitiveVulnerable) = classifyVulnerabilities(
             dependencies = dependencies,
@@ -64,12 +74,20 @@ class ProjectAnalyzer(
             vulnerabilityMap = vulnerabilityMap
         )
 
+        // Build vulnerability chains if requested
+        val chains = if (includeChains) {
+            buildVulnerabilityChains(dependencies, directDependencies, vulnerabilityMap)
+        } else {
+            emptyList()
+        }
+
         return DependencyReport(
             projectName = projectDir.name,
             upToDate = upToDate,
             outdated = outdated,
             directVulnerable = directVulnerable,
-            transitiveVulnerable = transitiveVulnerable
+            transitiveVulnerable = transitiveVulnerable,
+            vulnerabilityChains = chains
         )
     }
 
@@ -118,6 +136,21 @@ class ProjectAnalyzer(
             ?: return null
 
         return listOf(target.groupId + ":" + target.artifactId)
+    }
+
+    private fun buildVulnerabilityChains(
+        dependencies: List<ParsedDependency>,
+        directDependencies: List<ParsedDependency>,
+        vulnerabilityMap: Map<String, List<Vulnerability>>
+    ): List<com.depanalyzer.core.graph.VulnerabilityChain> {
+        val builder = DependencyGraphBuilder()
+        val graph = builder.buildGraph(
+            directDependencies = directDependencies,
+            allDependencies = dependencies,
+            vulnerabilities = vulnerabilityMap
+        )
+
+        return ChainResolver.resolveAllChains(graph, vulnerabilityMap)
     }
 
     private fun findLatestVersion(repos: List<ProjectRepository>, groupId: String, artifactId: String): String? {
