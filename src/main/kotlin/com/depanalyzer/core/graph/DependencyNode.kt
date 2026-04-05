@@ -23,16 +23,6 @@ data class DependencyNode(
         child.isVulnerable() || child.hasVulnerableTransitive()
     }
 
-    fun getPathFromRoot(): List<DependencyNode> {
-        val path = mutableListOf<DependencyNode>()
-        var current: DependencyNode? = this
-        while (current != null) {
-            path.add(0, current)
-            current = current.parent
-        }
-        return path
-    }
-
     fun addChild(child: DependencyNode) {
         if (!children.contains(child)) {
             children.add(child)
