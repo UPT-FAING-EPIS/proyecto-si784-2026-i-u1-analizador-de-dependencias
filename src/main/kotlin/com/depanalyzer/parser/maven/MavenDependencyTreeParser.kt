@@ -163,14 +163,21 @@ object MavenDependencyTreeParser {
         return -1
     }
 
-    private fun extractCoordinates(content: String): Pair<String, String?> {
-        val scopeMatch = Regex("\\((\\w+)\\)").find(content)
-        val scope = scopeMatch?.groupValues?.getOrNull(1)
-
-        val coordinates = content.substringBefore(" ").trim()
-
-        return Pair(coordinates, scope)
-    }
+     private fun extractCoordinates(content: String): Pair<String, String?> {
+         // Extract scope from parentheses notation, e.g., "(compile)", "(test)"
+         val scopeMatch = Regex("\\((\\w+)\\)").find(content)
+         val scope = scopeMatch?.groupValues?.getOrNull(1)
+ 
+         // Remove all annotations/parentheses content to isolate coordinates
+         // Example: "org.junit:junit:4.13.2 (test)" -> "org.junit:junit:4.13.2"
+         // Example: "org.slf4j:slf4j-api (omitted for duplicate)" -> "org.slf4j:slf4j-api"
+         val coordinates = content
+             .substringBefore("(")  // Remove parenthetical annotations
+             .substringBefore(" ")   // Remove any trailing whitespace/text
+             .trim()
+ 
+         return Pair(coordinates, scope)
+     }
 
      private fun buildHierarchy(treeLines: List<TreeLine>): List<DependencyNode> {
          if (treeLines.isEmpty()) return emptyList()

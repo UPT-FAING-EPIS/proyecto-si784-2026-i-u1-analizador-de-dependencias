@@ -1,0 +1,20 @@
+[INFO] com.example:complex-project:jar:1.0.0
+[INFO] +- org.springframework.cloud:spring-cloud-starter-config:jar:4.0.0:compile
+[INFO] |  +- org.springframework.boot:spring-boot-starter-webflux:jar:3.2.0:compile
+[INFO] |  |  +- org.springframework.boot:spring-boot:jar:3.2.0:compile
+[INFO] |  |  |  +- org.springframework.boot:spring-boot-autoconfigure:jar:3.2.0:compile
+[INFO] |  |  |  \- org.springframework:spring-core:jar:6.0.14:compile
+[INFO] |  |  +- org.springframework.boot:spring-boot-starter-logging:jar:3.2.0:compile
+[INFO] |  |  +- org.yaml:snakeyaml:jar:2.0:compile
+[INFO] |  |  +- org.springframework:spring-webflux:jar:6.0.14:compile
+[INFO] |  |  \- io.projectreactor:reactor-core:jar:2023.0.0:compile
+[INFO] |  +- org.springframework.cloud:spring-cloud-context:jar:4.0.0:compile
+[INFO] |  \- org.springframework.cloud:spring-cloud-commons:jar:4.0.0:compile
+[INFO] +- org.springframework.boot:spring-boot-starter-web:jar:3.2.0:compile
+[INFO] |  +- org.springframework.boot:spring-boot-starter:jar:3.2.0:compile
+[INFO] |  +- org.springframework.boot:spring-boot-starter-tomcat:jar:3.2.0:compile
+[INFO] |  \- org.springframework:spring-webmvc:jar:6.0.14:compile
+[INFO] +- org.junit.jupiter:junit-jupiter:jar:5.10.0:test
+[INFO] |  +- org.junit.jupiter:junit-jupiter-api:jar:5.10.0:test
+[INFO] |  \- org.junit.jupiter:junit-jupiter-engine:jar:5.10.0:test
+[INFO] \- org.projectlombok:lombok:jar:1.18.30:provided

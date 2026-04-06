@@ -1,0 +1,4 @@
+[INFO] com.example:simple-project:jar:1.0.0
+[INFO] +- junit:junit:jar:4.13.2:test
+[INFO] +- org.slf4j:slf4j-api:jar:2.0.13:compile
+[INFO] \- org.apache.commons:commons-lang3:jar:3.14.0:compile

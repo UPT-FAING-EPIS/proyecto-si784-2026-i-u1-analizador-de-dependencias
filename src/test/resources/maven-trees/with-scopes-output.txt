@@ -1,0 +1,5 @@
+[INFO] com.example:scoped-project:jar:1.0.0
+[INFO] +- junit:junit:jar:4.13.2:test
+[INFO] +- javax.servlet:javax.servlet-api:jar:4.0.1:provided
+[INFO] +- org.apache.commons:commons-lang3:jar:3.12.0:runtime
+[INFO] \- org.springframework:spring-core:jar:5.3.0:compile
