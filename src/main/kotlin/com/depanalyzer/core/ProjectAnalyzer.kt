@@ -3,6 +3,7 @@
 import com.depanalyzer.core.graph.ChainResolver
 import com.depanalyzer.core.graph.DependencyGraphBuilder
 import com.depanalyzer.parser.*
+import com.depanalyzer.parser.maven.MavenIntegration
 import com.depanalyzer.report.*
 import com.depanalyzer.repository.OssIndexClient
 import com.depanalyzer.repository.ProjectRepository
@@ -15,16 +16,26 @@ class ProjectAnalyzer(
     private val repositoryClient: RepositoryClient = RepositoryClient(),
     private val ossIndexClient: OssIndexClient = OssIndexClient()
 ) {
-    fun analyze(projectDir: Path, includeChains: Boolean = false): DependencyReport {
+    fun analyze(projectDir: Path, includeChains: Boolean = false, disableMaven: Boolean = false, verbose: Boolean = false): DependencyReport {
         val detector = ProjectDetector()
         val type = detector.detect(projectDir)
         val dirFile = projectDir.toFile()
 
         val (dependencies, repositories) = when (type) {
             ProjectType.MAVEN -> {
+                val mavenNodes = MavenIntegration.analyzeMavenProject(
+                    projectDir = dirFile,
+                    enableMaven = !disableMaven,
+                    verbose = verbose
+                )
+
+                val parsedDeps = mavenNodes.flatMap { node ->
+                    flattenNodeTree(node)
+                }
+                
                 val parser = PomDependencyParser()
                 val pomFile = File(dirFile, "pom.xml")
-                parser.parse(pomFile) to parser.repositories(pomFile)
+                parsedDeps to parser.repositories(pomFile)
             }
             ProjectType.GRADLE_GROOVY -> {
                 val parser = GradleGroovyDependencyParser()
@@ -179,4 +190,30 @@ class ProjectAnalyzer(
         scope = configuration,
         section = DependencySection.DEPENDENCIES
     )
+
+    /**
+     * Flatten a DependencyNode tree into a list of ParsedDependency objects.
+     * Recursively traverses all children and converts them to ParsedDependency.
+     */
+    private fun flattenNodeTree(node: com.depanalyzer.core.graph.DependencyNode): List<ParsedDependency> {
+        val result = mutableListOf<ParsedDependency>()
+        
+        // Add this node
+        result.add(
+            ParsedDependency(
+                groupId = node.groupId,
+                artifactId = node.artifactId,
+                version = node.version,
+                scope = "compile",  // Default scope when using Maven Tree
+                section = if (node.isDirectDependency()) DependencySection.DEPENDENCIES else DependencySection.DEPENDENCIES
+            )
+        )
+        
+        // Recursively add children
+        node.children.forEach { child ->
+            result.addAll(flattenNodeTree(child))
+        }
+        
+        return result
+    }
 }

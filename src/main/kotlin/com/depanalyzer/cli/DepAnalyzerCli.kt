@@ -46,6 +46,14 @@ class Analyze : CliktCommand() {
         "--chain-detail",
         help = "Muestra detalles completos de cadenas (requiere --show-chains)"
     ).flag()
+    private val offline: Boolean by option(
+        "--offline",
+        help = "Deshabilita Maven dependency:tree. Usa análisis estático (más rápido, menos preciso)"
+    ).flag()
+    private val disableMaven: Boolean by option(
+        "--disable-maven",
+        help = "Fuerza el análisis estático desactivando Maven"
+    ).flag()
 
     override fun run() {
         echo("Iniciando análisis en $path...")
@@ -56,7 +64,7 @@ class Analyze : CliktCommand() {
         )
 
         val report = try {
-            analyzer.analyze(path, includeChains = showChains)
+            analyzer.analyze(path, includeChains = showChains, disableMaven = offline || disableMaven, verbose = verbose)
         } catch (e: Exception) {
             echo("Error durante el análisis: ${e.message}", err = true)
             return
