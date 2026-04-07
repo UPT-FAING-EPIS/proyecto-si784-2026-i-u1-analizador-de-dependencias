@@ -3,7 +3,6 @@
 import com.depanalyzer.parser.DependencySection
 import com.depanalyzer.parser.ParsedDependency
 import com.depanalyzer.report.VulnerabilitySeverity
-import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
@@ -38,7 +37,7 @@ class OssIndexClientTest {
         val response = """
             [
               {
-                "coordinates": "org.slf4j:slf4j-api:1.7.26",
+                "coordinates": "pkg:maven/org.slf4j/slf4j-api@1.7.26",
                 "vulnerabilities": [
                   {
                     "id": "CVE-2021-23463",
@@ -95,7 +94,7 @@ class OssIndexClientTest {
         val response = """
             [
               {
-                "coordinates": "com.example:critical:1.0",
+                "coordinates": "pkg:maven/com.example/critical@1.0",
                 "vulnerabilities": [
                   {
                     "id": "CVE-CRITICAL",
@@ -107,7 +106,7 @@ class OssIndexClientTest {
                 ]
               },
               {
-                "coordinates": "com.example:high:1.0",
+                "coordinates": "pkg:maven/com.example/high@1.0",
                 "vulnerabilities": [
                   {
                     "id": "CVE-HIGH",
@@ -119,7 +118,7 @@ class OssIndexClientTest {
                 ]
               },
               {
-                "coordinates": "com.example:medium:1.0",
+                "coordinates": "pkg:maven/com.example/medium@1.0",
                 "vulnerabilities": [
                   {
                     "id": "CVE-MEDIUM",
@@ -131,7 +130,7 @@ class OssIndexClientTest {
                 ]
               },
               {
-                "coordinates": "com.example:low:1.0",
+                "coordinates": "pkg:maven/com.example/low@1.0",
                 "vulnerabilities": [
                   {
                     "id": "CVE-LOW",
@@ -143,7 +142,7 @@ class OssIndexClientTest {
                 ]
               },
               {
-                "coordinates": "com.example:unknown:1.0",
+                "coordinates": "pkg:maven/com.example/unknown@1.0",
                 "vulnerabilities": [
                   {
                     "id": "CVE-UNKNOWN",
@@ -236,11 +235,11 @@ class OssIndexClientTest {
     }
 
     @Test
-    fun `parsesVulnerabilitiesFromResponse - parsea CVE, CVSS, descripción correctamente`() {
+    fun `parsesVulnerabilitiesFromResponse - parsea CVE, CVSS, descripcion correctamente`() {
         val response = """
             [
               {
-                "coordinates": "org.yaml:snakeyaml:1.26",
+                "coordinates": "pkg:maven/org.yaml/snakeyaml@1.26",
                 "vulnerabilities": [
                   {
                     "id": "CVE-2022-25857",
@@ -340,8 +339,8 @@ class OssIndexClientTest {
         )
 
         val dependencies = listOf(
-            ParsedDependency("org.x", "y", "\$version", "compile", DependencySection.DEPENDENCIES),
-            ParsedDependency("org.x", "z", "\${someVersion}", "compile", DependencySection.DEPENDENCIES),
+            ParsedDependency("org.x", "y", $$"$version", "compile", DependencySection.DEPENDENCIES),
+            ParsedDependency("org.x", "z", $$"${someVersion}", "compile", DependencySection.DEPENDENCIES),
             ParsedDependency("org.x", "w", "1.0.0", "compile", DependencySection.DEPENDENCIES)
         )
 
@@ -351,7 +350,7 @@ class OssIndexClientTest {
     }
 
     @Test
-    fun `handlesEmptyDependencyList - lista vacía de dependencias`() {
+    fun `handlesEmptyDependencyList - lista vacia de dependencias`() {
         client = OssIndexClient(
             connectTimeoutSeconds = 5,
             readTimeoutSeconds = 5,
