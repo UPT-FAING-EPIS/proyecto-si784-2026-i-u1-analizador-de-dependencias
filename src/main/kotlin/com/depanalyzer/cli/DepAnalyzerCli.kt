@@ -54,6 +54,10 @@ class Analyze : CliktCommand() {
         "--disable-maven",
         help = "Fuerza el análisis estático desactivando Maven"
     ).flag()
+    private val disableGradle: Boolean by option(
+        "--disable-gradle",
+        help = "Desactiva Gradle dependency tree execution, usa análisis estático de build.gradle"
+    ).flag()
 
     override fun run() {
         echo("Iniciando análisis en $path...")
@@ -64,7 +68,13 @@ class Analyze : CliktCommand() {
         )
 
         val report = try {
-            analyzer.analyze(path, includeChains = showChains, disableMaven = offline || disableMaven, verbose = verbose)
+            analyzer.analyze(
+                path,
+                includeChains = showChains,
+                disableMaven = offline || disableMaven,
+                disableGradle = disableGradle,
+                verbose = verbose
+            )
         } catch (e: Exception) {
             echo("Error durante el análisis: ${e.message}", err = true)
             return

@@ -52,3 +52,7 @@ val compileKotlin: KotlinCompile by tasks
 compileKotlin.compilerOptions {
     freeCompilerArgs.set(listOf("-Xannotation-default-target=param-property"))
 }
+
+tasks.withType<JavaCompile> {
+    options.encoding = "UTF-8"
+}

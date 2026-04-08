@@ -1,0 +1,21 @@
+Project ':'
+
+compileClasspath - Compile classpath
+\--- org.springframework.boot:spring-boot-starter-web:3.2.0
+     +--- org.springframework.boot:spring-boot-starter:3.2.0 (*)
+     +--- org.springframework.boot:spring-boot-starter-tomcat:3.2.0 (*)
+     \--- org.springframework:spring-webmvc:6.1.2 (*)
+
+providedCompile - Provided compile dependencies
+\--- jakarta.servlet:jakarta.servlet-api:6.0.0
+
+runtimeClasspath - Runtime classpath
+\--- org.springframework.boot:spring-boot-starter-web:3.2.0 (*)
+
+testCompileClasspath - Test compile classpath
++--- org.springframework.boot:spring-boot-starter-web:3.2.0 (*)
+\--- org.junit.jupiter:junit-jupiter:5.9.3
+
+testRuntimeClasspath - Test runtime classpath
++--- org.springframework.boot:spring-boot-starter-web:3.2.0 (*)
+\--- org.junit.jupiter:junit-jupiter:5.9.3 (*)

@@ -1,0 +1,24 @@
+Project ':app'
+
+compileClasspath - Compile classpath
+\--- com.example:lib:1.0
+     \--- org.slf4j:slf4j-api:2.0.13
+
+runtimeClasspath - Runtime classpath
+\--- com.example:lib:1.0 (*)
+
+testCompileClasspath - Test compile classpath
++--- com.example:lib:1.0 (*)
+\--- junit:junit:4.13.2
+
+Project ':lib'
+
+compileClasspath - Compile classpath
+\--- org.slf4j:slf4j-api:2.0.13
+
+runtimeClasspath - Runtime classpath
+\--- org.slf4j:slf4j-api:2.0.13 (*)
+
+testCompileClasspath - Test compile classpath
++--- org.slf4j:slf4j-api:2.0.13 (*)
+\--- junit:junit:4.13.2

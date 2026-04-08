@@ -3,6 +3,7 @@
 import com.depanalyzer.core.graph.ChainResolver
 import com.depanalyzer.core.graph.DependencyGraphBuilder
 import com.depanalyzer.parser.*
+import com.depanalyzer.parser.gradle.GradleIntegration
 import com.depanalyzer.parser.maven.MavenIntegration
 import com.depanalyzer.report.*
 import com.depanalyzer.repository.OssIndexClient
@@ -16,7 +17,13 @@ class ProjectAnalyzer(
     private val repositoryClient: RepositoryClient = RepositoryClient(),
     private val ossIndexClient: OssIndexClient = OssIndexClient()
 ) {
-    fun analyze(projectDir: Path, includeChains: Boolean = false, disableMaven: Boolean = false, verbose: Boolean = false): DependencyReport {
+    fun analyze(
+        projectDir: Path,
+        includeChains: Boolean = false,
+        disableMaven: Boolean = false,
+        disableGradle: Boolean = false,
+        verbose: Boolean = false
+    ): DependencyReport {
         val detector = ProjectDetector()
         val type = detector.detect(projectDir)
         val dirFile = projectDir.toFile()
@@ -32,21 +39,40 @@ class ProjectAnalyzer(
                 val parsedDeps = mavenNodes.flatMap { node ->
                     flattenNodeTree(node)
                 }
-                
+
                 val parser = PomDependencyParser()
                 val pomFile = File(dirFile, "pom.xml")
                 parsedDeps to parser.repositories(pomFile)
             }
+
             ProjectType.GRADLE_GROOVY -> {
-                val parser = GradleGroovyDependencyParser()
+                val gradleNodes = GradleIntegration.analyzeGradleProject(
+                    projectDir = dirFile,
+                    enableGradle = !disableGradle,
+                    verbose = verbose
+                )
+
+                val parsedDeps = gradleNodes.flatMap { node ->
+                    flattenNodeTree(node)
+                }
+
                 val buildFile = File(dirFile, "build.gradle")
-                parser.parse(buildFile).map { it.toCommon() } to parser.repositories(buildFile)
+                parsedDeps to GradleRepositoryParser().parse(buildFile)
             }
+
             ProjectType.GRADLE_KOTLIN -> {
-                val catalog = loadVersionCatalog(dirFile)
-                val parser = GradleKotlinDependencyParser(catalog)
+                val gradleNodes = GradleIntegration.analyzeGradleProject(
+                    projectDir = dirFile,
+                    enableGradle = !disableGradle,
+                    verbose = verbose
+                )
+
+                val parsedDeps = gradleNodes.flatMap { node ->
+                    flattenNodeTree(node)
+                }
+
                 val buildFile = File(dirFile, "build.gradle.kts")
-                parser.parse(buildFile).map { it.toCommon() } to parser.repositories(buildFile)
+                parsedDeps to GradleRepositoryParser().parse(buildFile)
             }
         }
 
@@ -172,32 +198,11 @@ class ProjectAnalyzer(
         return null
     }
 
-    private fun loadVersionCatalog(projectDir: File): VersionCatalog {
-        val catalogFile = File(projectDir, "gradle/libs.versions.toml")
-        return if (catalogFile.exists()) {
-            VersionCatalogParser().parse(catalogFile)
-        } else {
-            VersionCatalog()
-        }
-    }
-
     private fun isVariable(version: String): Boolean = version.startsWith("$") || version.startsWith($$"${")
 
-    private fun ParsedGradleDependency.toCommon() = ParsedDependency(
-        groupId = groupId,
-        artifactId = artifactId,
-        version = version,
-        scope = configuration,
-        section = DependencySection.DEPENDENCIES
-    )
-
-    /**
-     * Flatten a DependencyNode tree into a list of ParsedDependency objects.
-     * Recursively traverses all children and converts them to ParsedDependency.
-     */
     private fun flattenNodeTree(node: com.depanalyzer.core.graph.DependencyNode): List<ParsedDependency> {
         val result = mutableListOf<ParsedDependency>()
-        
+
         // Add this node
         result.add(
             ParsedDependency(
@@ -208,12 +213,12 @@ class ProjectAnalyzer(
                 section = if (node.isDirectDependency()) DependencySection.DEPENDENCIES else DependencySection.DEPENDENCIES
             )
         )
-        
+
         // Recursively add children
         node.children.forEach { child ->
             result.addAll(flattenNodeTree(child))
         }
-        
+
         return result
     }
 }

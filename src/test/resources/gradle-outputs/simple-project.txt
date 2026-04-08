@@ -1,0 +1,15 @@
+Project ':'
+
+compileClasspath - Compile classpath for source set 'main'
+\--- org.slf4j:slf4j-api:2.0.13
+
+runtimeClasspath - Runtime classpath for source set 'main'
+\--- org.slf4j:slf4j-api:2.0.13 (*)
+
+testCompileClasspath - Compile classpath for source set 'test'
++--- org.slf4j:slf4j-api:2.0.13 (*)
+\--- junit:junit:4.13.2
+
+testRuntimeClasspath - Runtime classpath for source set 'test'
++--- org.slf4j:slf4j-api:2.0.13 (*)
+\--- junit:junit:4.13.2 (*)

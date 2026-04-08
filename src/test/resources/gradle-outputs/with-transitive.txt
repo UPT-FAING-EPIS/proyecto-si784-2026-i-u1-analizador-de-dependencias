@@ -1,0 +1,19 @@
+Project ':'
+
+compileClasspath - Compile classpath
+\--- com.fasterxml.jackson.core:jackson-databind:2.17.2
+     +--- com.fasterxml.jackson.core:jackson-annotations:2.17.2
+     |    \--- com.fasterxml.jackson:jackson-bom:2.17.2
+     |         +--- com.fasterxml.jackson.core:jackson-annotations:2.17.2 (c)
+     |         +--- com.fasterxml.jackson.core:jackson-core:2.17.2 (c)
+     |         \--- com.fasterxml.jackson.core:jackson-databind:2.17.2 (c)
+     +--- com.fasterxml.jackson.core:jackson-core:2.17.2
+     |    \--- com.fasterxml.jackson:jackson-bom:2.17.2 (*)
+     \--- com.fasterxml.jackson:jackson-bom:2.17.2 (*)
+
+runtimeClasspath - Runtime classpath
+\--- com.fasterxml.jackson.core:jackson-databind:2.17.2 (*)
+
+testCompileClasspath - Test compile classpath
++--- com.fasterxml.jackson.core:jackson-databind:2.17.2 (*)
+\--- junit:junit:4.13.2
