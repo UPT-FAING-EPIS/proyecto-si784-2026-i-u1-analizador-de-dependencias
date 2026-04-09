@@ -13,20 +13,20 @@ object MavenCommandExecutor {
         verbose: Boolean = false
     ): String? = try {
         if (!projectDir.exists() || !projectDir.isDirectory) {
-            if (verbose) System.err.println("ℹ️  Maven: Project directory doesn't exist or is not a directory")
+            if (verbose) System.err.println("[MavenCommandExecutor] Project directory doesn't exist or is not a directory")
             return null
         }
 
         val pomFile = File(projectDir, "pom.xml")
         if (!pomFile.exists()) {
-            if (verbose) System.err.println("ℹ️  Maven: pom.xml not found in $projectDir")
+            if (verbose) System.err.println("[MavenCommandExecutor] pom.xml not found in $projectDir")
             return null
         }
 
         val isWindows = System.getProperty("os.name").lowercase().contains("windows")
         val command = if (isWindows) "mvn.cmd" else "mvn"
 
-        if (verbose) System.err.println("ℹ️  Maven: Executing 'mvn dependency:tree' in $projectDir")
+        if (verbose) System.err.println("[MavenCommandExecutor] Executing 'mvn dependency:tree' in $projectDir")
 
         val process = ProcessBuilder(command, "dependency:tree")
             .directory(projectDir)
@@ -37,7 +37,7 @@ object MavenCommandExecutor {
 
         if (!completed) {
             process.destroyForcibly()
-            if (verbose) System.err.println("⚠️  Maven: Execution timeout after ${timeout.inWholeSeconds} seconds")
+            if (verbose) System.err.println("[MavenCommandExecutor] Execution timeout after ${timeout.inWholeSeconds} seconds")
             return null
         }
 
@@ -48,25 +48,28 @@ object MavenCommandExecutor {
         val exitCode = process.exitValue()
         
         if (verbose) {
-            System.err.println("ℹ️  Maven: Execution completed with exit code $exitCode")
-            System.err.println("ℹ️  Maven: Output length: ${output.length} characters")
+            System.err.println("[MavenCommandExecutor] Execution completed with exit code $exitCode")
+            System.err.println("[MavenCommandExecutor] Output length: ${output.length} characters")
         }
 
         if (output.isBlank()) {
-            if (verbose) System.err.println("⚠️  Maven: No output received from dependency:tree")
+            if (verbose) System.err.println("[MavenCommandExecutor] No output received from dependency:tree")
             if (exitCode != 0) {
-                if (verbose) System.err.println("⚠️  Maven: Exit code was $exitCode and output is empty")
+                if (verbose) System.err.println("[MavenCommandExecutor] Exit code was $exitCode and output is empty")
             }
             return null
         }
 
         if (exitCode != 0 && verbose) {
-            System.err.println("ℹ️  Maven: Non-zero exit code ($exitCode), but returning output anyway (likely warnings)")
+            System.err.println("[MavenCommandExecutor] Non-zero exit code ($exitCode), but returning output anyway (likely warnings)")
         }
         
         output
     } catch (e: Exception) {
-        System.err.println("⚠️  Maven: Execution failed: ${e.message}")
+        if (verbose) {
+            System.err.println("[MavenCommandExecutor] Exception during command execution: ${e.message}")
+            e.printStackTrace(System.err)
+        }
         null
     }
 }

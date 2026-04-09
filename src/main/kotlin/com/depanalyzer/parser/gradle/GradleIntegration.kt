@@ -22,6 +22,7 @@ object GradleIntegration {
         }
 
         if (!GradleDetector.isAvailable()) {
+            System.err.println("⚠️ Gradle not found. Using static analysis (less precise).")
             if (verbose) {
                 System.err.println("[GradleIntegration] Gradle not found in PATH, falling back to static parsing")
             }
@@ -35,6 +36,7 @@ object GradleIntegration {
 
             val output = GradleCommandExecutor.execute(projectDir, verbose = verbose)
                 ?: run {
+                    System.err.println("⚠️ Dynamic analysis failed. Using static analysis (less precise).")
                     if (verbose) {
                         System.err.println("[GradleIntegration] Gradle command returned null, falling back to static parsing")
                     }
@@ -43,17 +45,20 @@ object GradleIntegration {
 
             val nodes = GradleDependencyTreeParser.parse(output, verbose)
             if (nodes.isEmpty()) {
+                System.err.println("⚠️ Dynamic analysis failed. Using static analysis (less precise).")
                 if (verbose) {
                     System.err.println("[GradleIntegration] Gradle output parsing produced no nodes, falling back to static parsing")
                 }
                 fallbackToStaticParsing(projectDir, verbose)
             } else {
+                System.err.println("✓ Using dynamic analysis (precise)")
                 if (verbose) {
                     System.err.println("[GradleIntegration] Successfully parsed ${nodes.size} root dependencies from gradle")
                 }
                 nodes
             }
         } catch (e: Exception) {
+            System.err.println("⚠️ Dynamic analysis failed. Using static analysis (less precise).")
             if (verbose) {
                 System.err.println("[GradleIntegration] Exception during Gradle analysis, falling back to static parsing")
                 e.printStackTrace(System.err)

@@ -15,8 +15,9 @@ object MavenIntegration {
         val pomFile = File(projectDir, "pom.xml")
 
         if (!enableMaven) {
+            System.err.println("⚠️ Dynamic analysis disabled. Using static analysis (less precise).")
             if (verbose) {
-                System.err.println("ℹ️  Offline mode enabled. Using static analysis (less precise).")
+                System.err.println("[MavenIntegration] Offline mode enabled. Using static analysis (less precise).")
             }
             return fallbackToStaticParsing(pomFile, verbose)
         }
@@ -28,13 +29,17 @@ object MavenIntegration {
 
         val treeOutput = MavenCommandExecutor.execute(projectDir, verbose = verbose)
         if (treeOutput == null) {
-            System.err.println("⚠️  Maven execution failed, timed out, or produced no output. Using static analysis (less precise).")
+            System.err.println("⚠️ Dynamic analysis failed. Using static analysis (less precise).")
+            if (verbose) {
+                System.err.println("[MavenIntegration] Maven execution failed, timed out, or produced no output")
+            }
             return fallbackToStaticParsing(pomFile, verbose)
         }
 
         if (verbose) {
-            System.err.println("✓ Using Maven dependency tree (precise)")
+            System.err.println("[MavenIntegration] Using dynamic Maven analysis")
         }
+        System.err.println("✓ Using dynamic analysis (precise)")
 
         return MavenDependencyTreeParser.parse(treeOutput, verbose = verbose)
     }
@@ -42,9 +47,9 @@ object MavenIntegration {
     private fun fallbackToStaticParsing(pomFile: File, verbose: Boolean = false): List<DependencyNode> {
         return try {
             val parsedDeps = staticParser.parse(pomFile)
-            
+
             if (verbose) {
-                System.err.println("ℹ️  Static parsing found ${parsedDeps.size} dependencies")
+                System.err.println("[MavenIntegration] Static parsing found ${parsedDeps.size} dependencies")
             }
 
             parsedDeps.map { dep ->
@@ -61,7 +66,7 @@ object MavenIntegration {
             }.distinctBy { "${it.groupId}:${it.artifactId}" }
         } catch (e: IllegalArgumentException) {
             if (verbose) {
-                System.err.println("ℹ️  Static parsing failed: ${e.message}")
+                System.err.println("[MavenIntegration] Static parsing failed: ${e.message}")
             }
             emptyList()
         }
