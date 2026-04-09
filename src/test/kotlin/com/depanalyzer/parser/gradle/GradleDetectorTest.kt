@@ -7,19 +7,6 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class GradleDetectorTest {
-
-    @Test
-    fun `should check gradle availability`() {
-        val available = GradleDetector.isAvailable()
-        assertTrue(available || !available)
-    }
-
-    @Test
-    fun `should find gradle command in current system`() {
-        val version = GradleDetector.getVersion()
-        assertTrue(version == null || version is String)
-    }
-
     @Test
     fun `should handle non-existent project directory`() {
         val nonExistent = File("/non/existent/path/that/definitely/does/not/exist")

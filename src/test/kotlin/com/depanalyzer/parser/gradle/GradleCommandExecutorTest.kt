@@ -1,5 +1,10 @@
 package com.depanalyzer.parser.gradle
 
+import io.mockk.every
+import io.mockk.mockkObject
+import io.mockk.unmockkObject
+import org.junit.jupiter.api.AfterEach
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import java.io.File
 import kotlin.test.assertEquals
@@ -7,6 +12,16 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class GradleCommandExecutorTest {
+
+    @BeforeEach
+    fun setUp() {
+        mockkObject(GradleDetector)
+    }
+
+    @AfterEach
+    fun tearDown() {
+        unmockkObject(GradleDetector)
+    }
 
     @Test
     fun `should handle non-existent project directory`() {
@@ -26,6 +41,7 @@ class GradleCommandExecutorTest {
         tempDir.mkdirs()
 
         try {
+            every { GradleDetector.findGradleCommand(tempDir) } returns null
             val result = GradleCommandExecutor.execute(tempDir)
             assertNull(result)
         } finally {
@@ -40,8 +56,9 @@ class GradleCommandExecutorTest {
         tempDir.mkdirs()
 
         try {
+            every { GradleDetector.findGradleCommand(tempDir) } returns null
             val result = GradleCommandExecutor.execute(tempDir)
-            assertTrue(result.isNullOrEmpty() || result.isNotEmpty())
+            assertNull(result)
         } finally {
             tempDir.delete()
         }
