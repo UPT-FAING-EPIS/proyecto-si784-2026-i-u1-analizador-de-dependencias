@@ -129,15 +129,17 @@ object GradleDependencyTreeParser {
         val result = mutableListOf<DependencyNode>()
         val stack = mutableListOf<Pair<DependencyNode, Int>>()  // Node + depth
 
-        for (line in lines) {
-            val node = DependencyNode(
-                id = "${line.groupId}:${line.artifactId}:${line.version}",
-                groupId = line.groupId,
-                artifactId = line.artifactId,
-                version = line.version,
-                parent = null,
-                children = mutableListOf()
-            )
+         for (line in lines) {
+             val node = DependencyNode(
+                 id = "${line.groupId}:${line.artifactId}:${line.version}",
+                 groupId = line.groupId,
+                 artifactId = line.artifactId,
+                 version = line.version,
+                 parent = null,
+                 children = mutableListOf(),
+                 scope = line.scope,
+                 isDependencyManagement = false
+             )
 
             // Pop stack until we find the parent at a shallower depth
             while (stack.isNotEmpty() && stack.last().second >= line.depth) {

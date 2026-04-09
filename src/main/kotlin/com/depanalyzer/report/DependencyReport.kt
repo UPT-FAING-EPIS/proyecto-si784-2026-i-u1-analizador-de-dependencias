@@ -10,7 +10,8 @@ data class DependencyReport(
     val outdated: List<OutdatedDependency> = emptyList(),
     val directVulnerable: List<VulnerableDependency> = emptyList(),
     val transitiveVulnerable: List<VulnerableDependency> = emptyList(),
-    val vulnerabilityChains: List<VulnerabilityChain> = emptyList()
+    val vulnerabilityChains: List<VulnerabilityChain> = emptyList(),
+    val dependencyTree: List<DependencyTreeNode>? = null  // Tree structure (nuevo)
 )
 
 data class DependencyInfo(

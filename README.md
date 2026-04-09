@@ -218,6 +218,95 @@ Si deseas ejecutar los tests unitarios:
 ./gradlew test
 ```
 
+## Visualización del Árbol de Dependencias
+
+Por defecto, el analizador muestra las dependencias vulnerables y con actualizaciones disponibles en **formato de árbol
+** (similar al comando `tree` de Linux). Esto permite visualizar claramente:
+
+- **Dependencias directas vs transitivas:** Marcadas visualmente (🔴 directo, 🟡 transitivo)
+- **Actualizaciones disponibles:** Mostradas con ⬆️ en cada nodo
+- **Vulnerabilidades:** Ordenadas por severidad (CRITICAL, HIGH, MEDIUM, LOW)
+- **Cadenas de dependencias:** Ver completa la ruta desde una dependencia directa hasta la vulnerable
+
+### Opciones del Árbol
+
+| Opción               | Descripción                                                                                     |
+|:---------------------|:------------------------------------------------------------------------------------------------|
+| `--ascii`            | Usa caracteres ASCII puro en lugar de Unicode para el árbol (sin emojis).                       |
+| `--tree-depth N`     | Limita la profundidad del árbol a N niveles (N es un número entero positivo).                   |
+| `--tree-expand MODE` | Modo de expansión del árbol: `collapsed`, `critical`, `high`, `medium`, `all` (default: `all`). |
+
+### Modos de Expansión (`--tree-expand`)
+
+| Modo        | Descripción                                                         |
+|:------------|:--------------------------------------------------------------------|
+| `collapsed` | Solo muestra dependencias directas con problemas (sin transitivas). |
+| `critical`  | Muestra solo ramas con vulnerabilidades CRITICAL.                   |
+| `high`      | Muestra ramas con severidad HIGH o superior.                        |
+| `medium`    | Muestra ramas con severidad MEDIUM o superior.                      |
+| `all`       | Modo por defecto - muestra todas las ramas con problemas.           |
+
+### Ejemplos de Uso del Árbol
+
+```bash
+# Ver árbol de dependencias con formato por defecto (Unicode)
+./build/install/depanalyzer/bin/depanalyzer analyze .
+
+# Ver árbol en modo ASCII puro (sin emojis)
+./build/install/depanalyzer/bin/depanalyzer analyze . --ascii
+
+# Limitar profundidad a 2 niveles
+./build/install/depanalyzer/bin/depanalyzer analyze . --tree-depth 2
+
+# Solo mostrar dependencias directas con problemas
+./build/install/depanalyzer/bin/depanalyzer analyze . --tree-expand collapsed
+
+# Solo vulnerabilidades CRITICAL
+./build/install/depanalyzer/bin/depanalyzer analyze . --tree-expand critical
+
+# Modo verbose con árbol detallado (incluye scope, rutas, descripciones)
+./build/install/depanalyzer/bin/depanalyzer analyze . --verbose
+
+# Modo verbose con límite de profundidad
+./build/install/depanalyzer/bin/depanalyzer analyze . --verbose --tree-depth 3
+
+# Árbol en modo ASCII + verbose + sin colores (para CI/CD)
+./build/install/depanalyzer/bin/depanalyzer analyze . --ascii --verbose --no-color
+
+# Exportar árbol como JSON (preserva estructura jerárquica)
+./build/install/depanalyzer/bin/depanalyzer analyze . -o json
+```
+
+### Ejemplo de Salida
+
+**Modo Normal (Unicode):**
+
+```
+📦 DEPENDENCIAS CON PROBLEMAS
+├── 🔴 org.springframework.boot:spring-boot:2.5.0 [DIRECTO]
+│   ├── ⬆️ Disponible: 2.7.14
+│   └── 🟡 org.yaml:snakeyaml:1.32 [TRANSITIVO]
+│       ├── ⬆️ Disponible: 1.33
+│       ├── 🔴 [CVE-2021-12345] CRITICAL (9.8)
+│       └── 🟠 [CVE-2022-12345] HIGH (7.5)
+│
+└── 🟠 com.fasterxml.jackson:jackson-databind:2.13.0 [DIRECTO]
+    └── ⬆️ Disponible: 2.15.2
+```
+
+**Modo ASCII:**
+
+```
+[DEPENDENCIAS CON PROBLEMAS]
+|
++-- [CRITICAL] org.springframework.boot:spring-boot:2.5.0 [DIRECTO]
+|   |-- [UPDATE] Disponible: 2.7.14
+|   +-- [HIGH] org.yaml:snakeyaml:1.32 [TRANSITIVO]
+|       |-- [UPDATE] Disponible: 1.33
+|       +-- [CRITICAL] CVE-2021-12345 CVSS 9.8
+|       +-- [HIGH] CVE-2022-12345 CVSS 7.5
+```
+
 ## CI/CD
 
 El proyecto cuenta con un pipeline de GitHub Actions que ejecuta los tests en cada push a `main` y pull requests.

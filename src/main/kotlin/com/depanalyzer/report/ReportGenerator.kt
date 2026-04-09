@@ -15,7 +15,6 @@ class ReportGenerator {
     }
 
     fun toJsonVerbose(report: DependencyReport): String {
-        // Verbose mode includes all fields, Jackson already serializes everything
         return jsonMapper.writeValueAsString(report)
     }
 
@@ -78,68 +77,44 @@ class ReportGenerator {
         return sb.toString()
     }
 
-    fun toTextVerbose(report: DependencyReport): String {
-        val sb = StringBuilder()
-        sb.appendLine("====================================================")
-        sb.appendLine("Análisis de Dependencias: ${report.projectName}")
-        sb.appendLine("====================================================")
-        sb.appendLine()
-
-        if (report.directVulnerable.isNotEmpty() || report.transitiveVulnerable.isNotEmpty()) {
-            sb.appendLine("VULNERABILIDADES DETECTADAS (DETALLADO)")
-            sb.appendLine("---------------------------------------")
-
-            val allVulnerabilities = mutableListOf<Pair<String, Vulnerability>>()
-
-            report.directVulnerable.forEach { dep ->
-                dep.vulnerabilities.forEach { v ->
-                    allVulnerabilities.add("${dep.groupId}:${dep.artifactId}:${dep.version}" to v)
-                }
-            }
-
-            report.transitiveVulnerable.forEach { dep ->
-                dep.vulnerabilities.forEach { v ->
-                    allVulnerabilities.add("${dep.groupId}:${dep.artifactId}:${dep.version}" to v)
-                }
-            }
-
-            // Format as table
-            sb.appendLine("┌──────────────────┬──────────┬───────────┬────────────┬──────────────────────┬──────────────────────────────┐")
-            sb.appendLine("│ CVE ID           │ Severity │ CVSS Score│ Source     │ Retrieved At         │ Affected Dependency          │")
-            sb.appendLine("├──────────────────┼──────────┼───────────┼────────────┼──────────────────────┼──────────────────────────────┤")
-
-            allVulnerabilities.forEach { (coord, v) ->
-                val cveId = v.cveId.padEnd(16).take(16)
-                val severity = v.severity.toString().padEnd(8).take(8)
-                val cvssScore = (v.cvssScore?.toString() ?: "N/A").padEnd(9).take(9)
-                val source = v.source.toString().padEnd(10).take(10)
-                val retrievedAt = (v.retrievedAt?.toString() ?: "N/A").padEnd(20).take(20)
-                val affectedDep = coord.padEnd(28).take(28)
-
-                sb.appendLine("│ $cveId │ $severity │ $cvssScore │ $source │ $retrievedAt │ $affectedDep │")
-            }
-
-            sb.appendLine("└──────────────────┴──────────┴───────────┴────────────┴──────────────────────┴──────────────────────────────┘")
-            sb.appendLine()
+    private fun renderTreeNode(sb: StringBuilder, node: DependencyTreeNode, level: Int, useAscii: Boolean) {
+        val indent = "  ".repeat(level)
+        val prefix = if (useAscii) {
+            if (level == 0) "" else "|"
+        } else {
+            if (level == 0) "" else "│"
         }
 
-        if (report.outdated.isNotEmpty()) {
-            sb.appendLine("DEPENDENCIAS DESACTUALIZADAS")
-            sb.appendLine("----------------------------")
-            report.outdated.forEach { dep ->
-                sb.appendLine("  - ${dep.groupId}:${dep.artifactId}: ${dep.currentVersion} -> ${dep.latestVersion}")
-            }
-            sb.appendLine()
+        val marker = if (node.isDirectDependency) {
+            if (useAscii) "[DIRECT]" else "🔴"
+        } else {
+            if (useAscii) "[TRANSITIVE]" else "🟡"
         }
 
-        sb.appendLine("RESUMEN")
-        sb.appendLine("-------")
-        sb.appendLine("  Al día: ${report.upToDate.size}")
-        sb.appendLine("  Desactualizadas: ${report.outdated.size}")
-        sb.appendLine("  Vulnerabilidades directas: ${report.directVulnerable.size}")
-        sb.appendLine("  Vulnerabilidades transitivas: ${report.transitiveVulnerable.size}")
-        sb.appendLine("====================================================")
+        val nodeLabel = "${node.groupId}:${node.artifactId}:${node.currentVersion}"
+        sb.appendLine("$indent$prefix$marker $nodeLabel")
 
-        return sb.toString()
+        if (node.latestVersion != null) {
+            val updateMarker = if (useAscii) "[UPDATE]" else "⬆️"
+            val updateIndent = if (level == 0) "" else "  ".repeat(level) + "|  "
+            sb.appendLine("$updateIndent$updateMarker Disponible: ${node.latestVersion}")
+        }
+
+        node.vulnerabilities.forEach { vuln ->
+            val vulnMarker = when (vuln.severity) {
+                VulnerabilitySeverity.CRITICAL -> if (useAscii) "[CRITICAL]" else "🔴"
+                VulnerabilitySeverity.HIGH -> if (useAscii) "[HIGH]" else "🟠"
+                VulnerabilitySeverity.MEDIUM -> if (useAscii) "[MEDIUM]" else "🟡"
+                VulnerabilitySeverity.LOW -> if (useAscii) "[LOW]" else "🟢"
+                VulnerabilitySeverity.UNKNOWN -> if (useAscii) "[UNKNOWN]" else "⚪"
+            }
+            val cvssStr = vuln.cvssScore?.let { " (${it})" } ?: ""
+            val vulnIndent = if (level == 0) "" else "  ".repeat(level) + "|  "
+            sb.appendLine("$vulnIndent$vulnMarker [${vuln.cveId}] ${vuln.severity}$cvssStr")
+        }
+
+        node.children.forEach { child ->
+            renderTreeNode(sb, child, level + 1, useAscii)
+        }
     }
 }

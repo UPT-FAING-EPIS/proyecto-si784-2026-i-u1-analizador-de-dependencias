@@ -15,20 +15,22 @@ import kotlin.io.path.name
 
 class ProjectAnalyzer(
     private val repositoryClient: RepositoryClient = RepositoryClient(),
-    private val ossIndexClient: OssIndexClient = OssIndexClient()
+    private val ossIndexClient: OssIndexClient = OssIndexClient(),
+    private val projectDetector: ProjectDetector = ProjectDetector()
 ) {
     fun analyze(
         projectDir: Path,
         includeChains: Boolean = false,
         disableMaven: Boolean = false,
         disableGradle: Boolean = false,
-        verbose: Boolean = false
+        verbose: Boolean = false,
+        treeMaxDepth: Int? = null,
+        treeExpandMode: TreeExpandMode = TreeExpandMode.ALL
     ): DependencyReport {
-        val detector = ProjectDetector()
-        val type = detector.detect(projectDir)
+        val type = projectDetector.detect(projectDir)
         val dirFile = projectDir.toFile()
 
-        val (dependencies, repositories) = when (type) {
+        val (dependencies, repositories, rootNodes) = when (type) {
             ProjectType.MAVEN -> {
                 val mavenNodes = MavenIntegration.analyzeMavenProject(
                     projectDir = dirFile,
@@ -42,7 +44,7 @@ class ProjectAnalyzer(
 
                 val parser = PomDependencyParser()
                 val pomFile = File(dirFile, "pom.xml")
-                parsedDeps to parser.repositories(pomFile)
+                Triple(parsedDeps, parser.repositories(pomFile), mavenNodes)
             }
 
             ProjectType.GRADLE_GROOVY -> {
@@ -57,7 +59,7 @@ class ProjectAnalyzer(
                 }
 
                 val buildFile = File(dirFile, "build.gradle")
-                parsedDeps to GradleRepositoryParser().parse(buildFile)
+                Triple(parsedDeps, GradleRepositoryParser().parse(buildFile), gradleNodes)
             }
 
             ProjectType.GRADLE_KOTLIN -> {
@@ -72,7 +74,7 @@ class ProjectAnalyzer(
                 }
 
                 val buildFile = File(dirFile, "build.gradle.kts")
-                parsedDeps to GradleRepositoryParser().parse(buildFile)
+                Triple(parsedDeps, GradleRepositoryParser().parse(buildFile), gradleNodes)
             }
         }
 
@@ -111,12 +113,21 @@ class ProjectAnalyzer(
             vulnerabilityMap = vulnerabilityMap
         )
 
-        // Build vulnerability chains if requested
         val chains = if (includeChains) {
             buildVulnerabilityChains(dependencies, directDependencies, vulnerabilityMap)
         } else {
             emptyList()
         }
+
+        val dependencyTree = buildDependencyTree(
+            dependencies = dependencies,
+            directDependencies = directDependencies,
+            vulnerabilityMap = vulnerabilityMap,
+            outdatedMap = outdated,
+            maxDepth = treeMaxDepth,
+            expandMode = treeExpandMode,
+            rootNodes = rootNodes
+        )
 
         return DependencyReport(
             projectName = projectDir.name,
@@ -124,8 +135,35 @@ class ProjectAnalyzer(
             outdated = outdated,
             directVulnerable = directVulnerable,
             transitiveVulnerable = transitiveVulnerable,
-            vulnerabilityChains = chains
+            vulnerabilityChains = chains,
+            dependencyTree = dependencyTree
         )
+    }
+
+    private fun buildDependencyTree(
+        dependencies: List<ParsedDependency>,
+        directDependencies: List<ParsedDependency>,
+        vulnerabilityMap: Map<String, List<Vulnerability>>,
+        outdatedMap: List<OutdatedDependency>,
+        maxDepth: Int?,
+        expandMode: TreeExpandMode,
+        rootNodes: List<com.depanalyzer.core.graph.DependencyNode>
+    ): List<DependencyTreeNode>? {
+        if (rootNodes.isEmpty()) {
+            return null
+        }
+
+        val directCoordinates = directDependencies.map { "${it.groupId}:${it.artifactId}:${it.version}" }.toSet()
+        val outdatedByCoordinate = outdatedMap.associate {
+            "${it.groupId}:${it.artifactId}:${it.currentVersion}" to it
+        }
+
+        val builder = DependencyTreeBuilder(
+            vulnerabilities = vulnerabilityMap,
+            outdatedMap = outdatedByCoordinate
+        )
+
+        return builder.buildTree(rootNodes, maxDepth, expandMode).takeIf { it.isNotEmpty() }
     }
 
     private fun classifyVulnerabilities(
@@ -203,18 +241,16 @@ class ProjectAnalyzer(
     private fun flattenNodeTree(node: com.depanalyzer.core.graph.DependencyNode): List<ParsedDependency> {
         val result = mutableListOf<ParsedDependency>()
 
-        // Add this node
         result.add(
             ParsedDependency(
                 groupId = node.groupId,
                 artifactId = node.artifactId,
                 version = node.version,
-                scope = "compile",  // Default scope when using Maven Tree
-                section = if (node.isDirectDependency()) DependencySection.DEPENDENCIES else DependencySection.DEPENDENCIES
+                scope = node.scope ?: "compile",
+                section = if (node.isDependencyManagement) DependencySection.DEPENDENCY_MANAGEMENT else DependencySection.DEPENDENCIES
             )
         )
 
-        // Recursively add children
         node.children.forEach { child ->
             result.addAll(flattenNodeTree(child))
         }

@@ -21,14 +21,12 @@ class GradleCommandExecutorTest {
 
     @Test
     fun `should return null when gradle not found`() {
-        // Create a temporary directory without gradle installed
         val tempDir = File.createTempFile("gradle-test", "")
         tempDir.delete()
         tempDir.mkdirs()
 
         try {
             val result = GradleCommandExecutor.execute(tempDir)
-            // Result should be null if gradle is not available
             assertNull(result)
         } finally {
             tempDir.delete()
@@ -37,13 +35,11 @@ class GradleCommandExecutorTest {
 
     @Test
     fun `should not throw exception on error`() {
-        // Create a minimal project structure
         val tempDir = File.createTempFile("gradle-test", "")
         tempDir.delete()
         tempDir.mkdirs()
 
         try {
-            // Should not throw, just return null or empty
             val result = GradleCommandExecutor.execute(tempDir)
             assertTrue(result.isNullOrEmpty() || result.isNotEmpty())
         } finally {

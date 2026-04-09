@@ -3,6 +3,7 @@
 import com.depanalyzer.core.ProjectAnalyzer
 import com.depanalyzer.report.ConsoleRenderer
 import com.depanalyzer.report.ReportGenerator
+import com.depanalyzer.report.TreeExpandMode
 import com.depanalyzer.repository.OssIndexClient
 import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.core.Context
@@ -11,6 +12,7 @@ import com.github.ajalt.clikt.core.subcommands
 import com.github.ajalt.clikt.parameters.arguments.argument
 import com.github.ajalt.clikt.parameters.options.flag
 import com.github.ajalt.clikt.parameters.options.option
+import com.github.ajalt.clikt.parameters.types.int
 import com.github.ajalt.clikt.parameters.types.path
 import java.nio.file.Path
 
@@ -58,6 +60,18 @@ class Analyze : CliktCommand() {
         "--disable-gradle",
         help = "Desactiva Gradle dependency tree execution, usa análisis estático de build.gradle"
     ).flag()
+    private val ascii: Boolean by option(
+        "--ascii",
+        help = "Usa caracteres ASCII en lugar de Unicode para el árbol de dependencias"
+    ).flag()
+    private val treeDepth: Int? by option(
+        "--tree-depth",
+        help = "Limita la profundidad del árbol de dependencias a N niveles"
+    ).int()
+    private val treeExpand: String? by option(
+        "--tree-expand",
+        help = "Modo de expansión del árbol: collapsed, critical, high, medium, all (default: all)"
+    )
 
     override fun run() {
         echo("Iniciando análisis en $path...")
@@ -67,13 +81,30 @@ class Analyze : CliktCommand() {
             ossIndexClient = OssIndexClient(token = token)
         )
 
+        val expandMode = when (treeExpand?.lowercase()) {
+            "collapsed" -> TreeExpandMode.COLLAPSED
+            "critical" -> TreeExpandMode.CRITICAL
+            "high" -> TreeExpandMode.HIGH
+            "medium" -> TreeExpandMode.MEDIUM
+            "all", null -> TreeExpandMode.ALL
+            else -> {
+                echo(
+                    "Error: modo de expansión desconocido '$treeExpand'. Use: collapsed, critical, high, medium, all",
+                    err = true
+                )
+                return
+            }
+        }
+
         val report = try {
             analyzer.analyze(
                 path,
                 includeChains = showChains,
                 disableMaven = offline || disableMaven,
                 disableGradle = disableGradle,
-                verbose = verbose
+                verbose = verbose,
+                treeMaxDepth = treeDepth,
+                treeExpandMode = expandMode
             )
         } catch (e: Exception) {
             echo("Error durante el análisis: ${e.message}", err = true)
@@ -92,12 +123,12 @@ class Analyze : CliktCommand() {
             }
 
             verbose -> {
-                val renderer = ConsoleRenderer(noColor = noColor)
+                val renderer = ConsoleRenderer(noColor = noColor, useAscii = ascii, treeMaxDepth = treeDepth)
                 renderer.renderVerbose(report, showChains = showChains, detailedChains = chainDetail)
             }
 
             else -> {
-                val renderer = ConsoleRenderer(noColor = noColor)
+                val renderer = ConsoleRenderer(noColor = noColor, useAscii = ascii, treeMaxDepth = treeDepth)
                 renderer.render(report, showChains = showChains, detailedChains = chainDetail)
             }
         }

@@ -12,7 +12,7 @@ object MavenDependencyTreeParser {
 
         val lines = treeOutput.lines()
         if (verbose) System.err.println("ℹ️  Parser: Processing ${lines.size} lines")
-        
+
         val treeLines = parseLines(lines)
         if (verbose) System.err.println("ℹ️  Parser: Extracted ${treeLines.size} parsed lines")
 
@@ -84,9 +84,9 @@ object MavenDependencyTreeParser {
         val content = trimmed.substring(contentStart).trim()
         if (content.isEmpty()) return null
 
-        val isExcluded = content.contains("[EXCLUDED]") || 
-                         content.contains("[omitted for duplicate]") ||
-                         content.contains("(omitted for duplicate)")
+        val isExcluded = content.contains("[EXCLUDED]") ||
+                content.contains("[omitted for duplicate]") ||
+                content.contains("(omitted for duplicate)")
 
         val (coords, scope) = extractCoordinates(content)
         if (coords.isEmpty()) return null
@@ -98,10 +98,12 @@ object MavenDependencyTreeParser {
             3 -> {
                 Triple(parts[0], parts[1], parts[2])
             }
+
             4, 5 -> {
 
                 Triple(parts[0], parts[1], parts[parts.size - 2])
             }
+
             else -> {
                 return null
             }
@@ -132,16 +134,20 @@ object MavenDependencyTreeParser {
                         i++
                     }
                 }
+
                 line[i] == '+' || line[i] == '\\' -> {
                     break
                 }
+
                 line[i] == ' ' && i + 2 < line.length && line[i + 1] == ' ' && line[i + 2] == ' ' -> {
                     depth++
                     i += 3
                 }
+
                 line[i] == ' ' -> {
                     i++
                 }
+
                 else -> {
                     break
                 }
@@ -163,57 +169,55 @@ object MavenDependencyTreeParser {
         return -1
     }
 
-     private fun extractCoordinates(content: String): Pair<String, String?> {
-         // Extract scope from parentheses notation, e.g., "(compile)", "(test)"
-         val scopeMatch = Regex("\\((\\w+)\\)").find(content)
-         val scope = scopeMatch?.groupValues?.getOrNull(1)
- 
-         // Remove all annotations/parentheses content to isolate coordinates
-         // Example: "org.junit:junit:4.13.2 (test)" -> "org.junit:junit:4.13.2"
-         // Example: "org.slf4j:slf4j-api (omitted for duplicate)" -> "org.slf4j:slf4j-api"
-         val coordinates = content
-             .substringBefore("(")  // Remove parenthetical annotations
-             .substringBefore(" ")   // Remove any trailing whitespace/text
-             .trim()
- 
-         return Pair(coordinates, scope)
-     }
+    private fun extractCoordinates(content: String): Pair<String, String?> {
+        val scopeMatch = Regex("\\((\\w+)\\)").find(content)
+        val scope = scopeMatch?.groupValues?.getOrNull(1)
 
-     private fun buildHierarchy(treeLines: List<TreeLine>): List<DependencyNode> {
-         if (treeLines.isEmpty()) return emptyList()
+        val coordinates = content
+            .substringBefore("(")
+            .substringBefore(" ")
+            .trim()
 
-         val stack = mutableListOf<Pair<Int, DependencyNode>>()
-         val rootNodes = mutableListOf<DependencyNode>()
+        return Pair(coordinates, scope)
+    }
 
-         for (treeLine in treeLines) {
+    private fun buildHierarchy(treeLines: List<TreeLine>): List<DependencyNode> {
+        if (treeLines.isEmpty()) return emptyList()
 
-             while (stack.isNotEmpty() && stack.last().first >= treeLine.depth) {
-                 stack.removeAt(stack.size - 1)
-             }
-             val parentNode = if (stack.isEmpty()) {
-                 null
-             } else {
-                 stack.last().second
-             }
+        val stack = mutableListOf<Pair<Int, DependencyNode>>()
+        val rootNodes = mutableListOf<DependencyNode>()
 
-             val node = DependencyNode(
-                 id = treeLine.run { "$groupId:$artifactId" },
-                 groupId = treeLine.groupId,
-                 artifactId = treeLine.artifactId,
-                 version = treeLine.version,
-                 parent = parentNode,
-                 children = mutableListOf()
-             )
+        for (treeLine in treeLines) {
 
-             parentNode?.addChild(node)
+            while (stack.isNotEmpty() && stack.last().first >= treeLine.depth) {
+                stack.removeAt(stack.size - 1)
+            }
+            val parentNode = if (stack.isEmpty()) {
+                null
+            } else {
+                stack.last().second
+            }
 
-             if (parentNode == null) {
-                 rootNodes.add(node)
-             }
+            val node = DependencyNode(
+                id = treeLine.run { "$groupId:$artifactId" },
+                groupId = treeLine.groupId,
+                artifactId = treeLine.artifactId,
+                version = treeLine.version,
+                parent = parentNode,
+                children = mutableListOf(),
+                scope = treeLine.scope,
+                isDependencyManagement = false
+            )
 
-             stack.add(Pair(treeLine.depth, node))
-         }
+            parentNode?.addChild(node)
 
-         return rootNodes
-     }
+            if (parentNode == null) {
+                rootNodes.add(node)
+            }
+
+            stack.add(Pair(treeLine.depth, node))
+        }
+
+        return rootNodes
+    }
 }

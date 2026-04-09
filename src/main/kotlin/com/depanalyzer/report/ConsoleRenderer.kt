@@ -7,7 +7,11 @@ import com.github.ajalt.mordant.rendering.TextStyles.bold
 import com.github.ajalt.mordant.table.table
 import com.github.ajalt.mordant.terminal.Terminal
 
-class ConsoleRenderer(noColor: Boolean = false) {
+class ConsoleRenderer(
+    noColor: Boolean = false,
+    private val useAscii: Boolean = false,
+    private val treeMaxDepth: Int? = null
+) {
     private val terminal = Terminal(
         ansiLevel = if (noColor) AnsiLevel.NONE else AnsiLevel.TRUECOLOR
     )
@@ -18,8 +22,13 @@ class ConsoleRenderer(noColor: Boolean = false) {
         terminal.println(bold("===================================================="))
         terminal.println()
 
-        renderVulnerabilities(report)
-        renderOutdated(report)
+        report.dependencyTree?.takeIf { it.isNotEmpty() }?.let {
+            renderDependencyTree(it)
+        } ?: run {
+            renderVulnerabilities(report)
+            renderOutdated(report)
+        }
+
         if (showChains && report.vulnerabilityChains.isNotEmpty()) {
             renderVulnerabilityChains(report, detailedChains)
         }
@@ -32,8 +41,13 @@ class ConsoleRenderer(noColor: Boolean = false) {
         terminal.println(bold("===================================================="))
         terminal.println()
 
-        renderVulnerabilitiesVerbose(report)
-        renderOutdated(report)
+        report.dependencyTree?.takeIf { it.isNotEmpty() }?.let {
+            renderDependencyTreeVerbose(it)
+        } ?: run {
+            renderVulnerabilitiesVerbose(report)
+            renderOutdated(report)
+        }
+
         if (showChains && report.vulnerabilityChains.isNotEmpty()) {
             renderVulnerabilityChains(report, detailedChains)
         }
@@ -60,7 +74,6 @@ class ConsoleRenderer(noColor: Boolean = false) {
             }
         }
 
-        // Render table with mordant
         val vulnerabilityTable = table {
             header {
                 row(
@@ -139,39 +152,29 @@ class ConsoleRenderer(noColor: Boolean = false) {
             return
         }
 
-        // Group by direct dependency first
         report.vulnerabilityChains.groupBy { it.directDependency.id }.forEach { (directDepId, chainsForDirect) ->
             terminal.println(bold("De: ") + yellow(directDepId))
-            
-            // Group by signature (direct + vulnerable + cveSet) to identify alternative paths
             data class ChainSignature(
                 val vulnerableNodeId: String,
                 val cveSet: Set<String>
             )
-            
+
             val signatureMap = chainsForDirect.groupBy { chain ->
                 ChainSignature(
                     vulnerableNodeId = chain.vulnerableNode.id,
                     cveSet = chain.cveIds.toSet()
                 )
             }
-            
-            // For each unique signature, show only the shortest path with alternative count
             signatureMap.forEach { (_, pathsWithSameSignature) ->
-                // Find shortest path (by chain size)
                 val shortestPath = pathsWithSameSignature.minByOrNull { it.chain.size }
                     ?: return@forEach
-                
                 val marker = cyan("✓")
                 val chainPath = shortestPath.chain.joinToString(" → ") { it.coordinate }
                 terminal.println("  $marker $chainPath")
-                
-                // Show alternative paths note if there are multiple paths with same signature
                 if (pathsWithSameSignature.size > 1) {
                     val alternativeCount = pathsWithSameSignature.size - 1
                     terminal.println(gray("    📌 +$alternativeCount alternative path${if (alternativeCount > 1) "s" else ""} (all longer)"))
                 }
-                
                 if (detailed) {
                     shortestPath.vulnerabilities.forEach { vuln ->
                         val color = severityColor(vuln.severity)
@@ -190,6 +193,150 @@ class ConsoleRenderer(noColor: Boolean = false) {
             VulnerabilitySeverity.MEDIUM -> yellow
             VulnerabilitySeverity.LOW -> gray
             VulnerabilitySeverity.UNKNOWN -> white
+        }
+    }
+
+    private fun renderDependencyTree(nodes: List<DependencyTreeNode>, level: Int = 0) {
+        if (level == 0) {
+            terminal.println(bold(red("📦 DEPENDENCIAS CON PROBLEMAS")))
+            terminal.println(red("" + if (useAscii) "----------------------------" else "────────────────────────────"))
+        }
+
+        nodes.forEach { node ->
+            // Verificar profundidad máxima
+            if (treeMaxDepth != null && level >= treeMaxDepth) {
+                return@forEach
+            }
+
+            val prefix = getTreePrefix(level, useAscii)
+            val marker = if (node.isDirectDependency) {
+                if (useAscii) "[DIRECT]" else "🔴"
+            } else {
+                if (useAscii) "[TRANSITIVE]" else "🟡"
+            }
+
+            val severityColor = node.maxSeverity?.let { severityColor(it) } ?: white
+            val nodeLabel = "${node.groupId}:${node.artifactId}:${node.currentVersion}"
+
+            terminal.println("$prefix $marker ${severityColor(nodeLabel)} ${if (node.isDirectDependency) "" else "[TRANSITIVO]"}")
+
+            if (node.latestVersion != null) {
+                val updatePrefix = getTreeContinuePrefix(level, useAscii)
+                val updateMarker = if (useAscii) "[UPDATE]" else "⬆️"
+                terminal.println("$updatePrefix $updateMarker ${cyan("Disponible: ${node.latestVersion}")}")
+            }
+
+            node.vulnerabilities.forEach { vuln ->
+                val vulnPrefix = getTreeContinuePrefix(level, useAscii)
+                val vulnMarker = when (vuln.severity) {
+                    VulnerabilitySeverity.CRITICAL -> if (useAscii) "[CRITICAL]" else "🔴"
+                    VulnerabilitySeverity.HIGH -> if (useAscii) "[HIGH]" else "🟠"
+                    VulnerabilitySeverity.MEDIUM -> if (useAscii) "[MEDIUM]" else "🟡"
+                    VulnerabilitySeverity.LOW -> if (useAscii) "[LOW]" else "🟢"
+                    VulnerabilitySeverity.UNKNOWN -> if (useAscii) "[UNKNOWN]" else "⚪"
+                }
+                val vulnColor = severityColor(vuln.severity)
+                val cvssStr = vuln.cvssScore?.let { " (${it})" } ?: ""
+                terminal.println("$vulnPrefix $vulnMarker ${vulnColor("[${vuln.cveId}] ${vuln.severity}$cvssStr")}")
+            }
+
+            if (node.children.isNotEmpty()) {
+                renderDependencyTree(node.children, level + 1)
+            }
+        }
+
+        if (level == 0) {
+            terminal.println()
+        }
+    }
+
+    private fun renderDependencyTreeVerbose(nodes: List<DependencyTreeNode>, level: Int = 0) {
+        if (level == 0) {
+            terminal.println(bold(red("📦 DEPENDENCIAS CON PROBLEMAS (DETALLADO)")))
+            terminal.println(red("" + if (useAscii) "-------------------------------------------" else "───────────────────────────────────────────"))
+        }
+
+        nodes.forEach { node ->
+            if (treeMaxDepth != null && level >= treeMaxDepth) {
+                return@forEach
+            }
+
+            val prefix = getTreePrefix(level, useAscii)
+            val marker = if (node.isDirectDependency) {
+                if (useAscii) "[DIRECT]" else "🔴"
+            } else {
+                if (useAscii) "[TRANSITIVE]" else "🟡"
+            }
+
+            val nodeLabel = "${node.groupId}:${node.artifactId}:${node.currentVersion}"
+            val scopeStr = node.scope?.let { " | $it" } ?: ""
+            val typeStr = if (node.isDirectDependency) "DIRECTO" else "TRANSITIVO"
+
+            terminal.println("$prefix $marker ${bold(nodeLabel)} [$typeStr$scopeStr]")
+
+            val detailPrefix = getTreeContinuePrefix(level, useAscii)
+            terminal.println("$detailPrefix ID: ${node.coordinate}")
+
+            node.dependencyChain?.takeIf { it.isNotEmpty() }?.let { chain ->
+                val chainStr = chain.joinToString(" → ")
+                terminal.println("$detailPrefix ${gray("Ruta: $chainStr")}")
+            }
+
+            if (node.latestVersion != null) {
+                val updateMarker = if (useAscii) "[UPDATE]" else "⬆️"
+                terminal.println("$detailPrefix $updateMarker ${cyan("Actualización: ${node.latestVersion}")}")
+            }
+
+            if (node.vulnerabilities.isNotEmpty()) {
+                terminal.println("$detailPrefix ${bold("Vulnerabilidades:")} ${node.vulnerabilities.size}")
+                node.vulnerabilities.forEach { vuln ->
+                    val vulnColor = severityColor(vuln.severity)
+                    terminal.println("$detailPrefix  ├─ ${vulnColor("[${vuln.cveId}] ${vuln.severity}")} ${vuln.cvssScore?.let { "(CVSS $it)" } ?: ""}")
+
+                    vuln.description?.let { desc ->
+                        val truncated = if (desc.length > 80) desc.substring(0, 77) + "..." else desc
+                        terminal.println("$detailPrefix  │  $truncated")
+                    }
+
+                    terminal.println("$detailPrefix  │  Fuente: ${vuln.source}")
+                    vuln.retrievedAt?.let {
+                        terminal.println(
+                            "$detailPrefix  │  Obtenido: ${
+                                it.toString().substring(0, 19)
+                            }"
+                        )
+                    }
+                    vuln.referenceUrl?.let { terminal.println("$detailPrefix  │  ${blue(it)}") }
+                }
+            }
+
+            terminal.println()
+
+            if (node.children.isNotEmpty()) {
+                renderDependencyTreeVerbose(node.children, level + 1)
+            }
+        }
+
+        if (level == 0) {
+            terminal.println()
+        }
+    }
+
+    private fun getTreePrefix(level: Int, useAscii: Boolean): String {
+        val indent = "  ".repeat(level)
+        return if (useAscii) {
+            if (level == 0) "" else "$indent|"
+        } else {
+            if (level == 0) "" else "$indent└"
+        }
+    }
+
+    private fun getTreeContinuePrefix(level: Int, useAscii: Boolean): String {
+        val indent = "  ".repeat(level)
+        return if (useAscii) {
+            if (level == 0) "|" else "$indent|"
+        } else {
+            if (level == 0) "│" else "$indent│"
         }
     }
 

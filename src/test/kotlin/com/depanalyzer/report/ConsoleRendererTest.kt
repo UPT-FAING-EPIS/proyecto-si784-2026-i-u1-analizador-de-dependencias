@@ -254,4 +254,185 @@ class ConsoleRendererTest {
         renderer.render(report, showChains = true, detailedChains = true)
         assertNotNull(renderer)
     }
+
+    @Test
+    fun `renders dependency tree without crashing`() {
+        val affectedDependency = AffectedDependency("org.example", "vulnerable-dep", "1.0")
+        val vulnerability = Vulnerability(
+            cveId = "CVE-2024-00001",
+            severity = VulnerabilitySeverity.CRITICAL,
+            cvssScore = 9.8,
+            description = "Critical vulnerability",
+            affectedDependency = affectedDependency,
+            source = VulnerabilitySource.OSS_INDEX,
+            retrievedAt = Instant.now(),
+            referenceUrl = "https://example.com"
+        )
+
+        val transitiveNode = DependencyTreeNode(
+            groupId = "org.example",
+            artifactId = "vulnerable-dep",
+            currentVersion = "1.0",
+            latestVersion = null,
+            isDirectDependency = false,
+            vulnerabilities = listOf(vulnerability),
+            dependencyChain = listOf("root:1.0", "vulnerable-dep:1.0")
+        )
+
+        val rootNode = DependencyTreeNode(
+            groupId = "org.example",
+            artifactId = "root-dep",
+            currentVersion = "1.0",
+            latestVersion = "2.0",
+            isDirectDependency = true,
+            children = listOf(transitiveNode)
+        )
+
+        val report = DependencyReport(
+            projectName = "Test",
+            dependencyTree = listOf(rootNode)
+        )
+
+        val renderer = ConsoleRenderer(noColor = true, useAscii = false)
+        renderer.render(report)
+        assertNotNull(renderer)
+    }
+
+    @Test
+    fun `renders dependency tree in verbose mode without crashing`() {
+        val affectedDependency = AffectedDependency("org.example", "vulnerable-dep", "1.0")
+        val vulnerability = Vulnerability(
+            cveId = "CVE-2024-00001",
+            severity = VulnerabilitySeverity.HIGH,
+            cvssScore = 7.5,
+            description = "High severity vulnerability",
+            affectedDependency = affectedDependency,
+            source = VulnerabilitySource.OSS_INDEX,
+            retrievedAt = Instant.now(),
+            referenceUrl = "https://example.com"
+        )
+
+        val transitiveNode = DependencyTreeNode(
+            groupId = "org.example",
+            artifactId = "vulnerable-dep",
+            currentVersion = "1.0",
+            latestVersion = null,
+            isDirectDependency = false,
+            scope = "compile",
+            vulnerabilities = listOf(vulnerability),
+            dependencyChain = listOf("root:1.0", "vulnerable-dep:1.0")
+        )
+
+        val rootNode = DependencyTreeNode(
+            groupId = "org.example",
+            artifactId = "root-dep",
+            currentVersion = "1.0",
+            latestVersion = "2.0",
+            isDirectDependency = true,
+            scope = "compile",
+            children = listOf(transitiveNode)
+        )
+
+        val report = DependencyReport(
+            projectName = "Test",
+            dependencyTree = listOf(rootNode)
+        )
+
+        val renderer = ConsoleRenderer(noColor = true, useAscii = false)
+        renderer.renderVerbose(report)
+        assertNotNull(renderer)
+    }
+
+    @Test
+    fun `renders dependency tree with ASCII mode without crashing`() {
+        val affectedDependency = AffectedDependency("org.example", "vulnerable-dep", "1.0")
+        val vulnerability = Vulnerability(
+            cveId = "CVE-2024-00001",
+            severity = VulnerabilitySeverity.MEDIUM,
+            cvssScore = 5.0,
+            description = "Medium severity vulnerability",
+            affectedDependency = affectedDependency,
+            source = VulnerabilitySource.OSS_INDEX,
+            retrievedAt = Instant.now(),
+            referenceUrl = "https://example.com"
+        )
+
+        val rootNode = DependencyTreeNode(
+            groupId = "org.example",
+            artifactId = "root-dep",
+            currentVersion = "1.0",
+            latestVersion = null,
+            isDirectDependency = true,
+            vulnerabilities = listOf(vulnerability)
+        )
+
+        val report = DependencyReport(
+            projectName = "Test",
+            dependencyTree = listOf(rootNode)
+        )
+
+        val renderer = ConsoleRenderer(noColor = true, useAscii = true)
+        renderer.render(report)
+        assertNotNull(renderer)
+    }
+
+    @Test
+    fun `renders dependency tree with depth limit without crashing`() {
+        val level2Node = DependencyTreeNode(
+            groupId = "org.example",
+            artifactId = "level-2",
+            currentVersion = "1.0",
+            isDirectDependency = false,
+            vulnerabilities = listOf(
+                Vulnerability(
+                    cveId = "CVE-2024-00003",
+                    severity = VulnerabilitySeverity.LOW,
+                    cvssScore = 2.0,
+                    description = "Low vulnerability",
+                    affectedDependency = AffectedDependency("org.example", "level-2", "1.0"),
+                    source = VulnerabilitySource.OSS_INDEX,
+                    retrievedAt = Instant.now(),
+                    referenceUrl = null
+                )
+            )
+        )
+
+        val level1Node = DependencyTreeNode(
+            groupId = "org.example",
+            artifactId = "level-1",
+            currentVersion = "1.0",
+            isDirectDependency = false,
+            children = listOf(level2Node),
+            vulnerabilities = listOf(
+                Vulnerability(
+                    cveId = "CVE-2024-00002",
+                    severity = VulnerabilitySeverity.MEDIUM,
+                    cvssScore = 5.5,
+                    description = "Medium vulnerability",
+                    affectedDependency = AffectedDependency("org.example", "level-1", "1.0"),
+                    source = VulnerabilitySource.OSS_INDEX,
+                    retrievedAt = Instant.now(),
+                    referenceUrl = null
+                )
+            )
+        )
+
+        val rootNode = DependencyTreeNode(
+            groupId = "org.example",
+            artifactId = "root-dep",
+            currentVersion = "1.0",
+            latestVersion = "2.0",
+            isDirectDependency = true,
+            children = listOf(level1Node)
+        )
+
+        val report = DependencyReport(
+            projectName = "Test",
+            dependencyTree = listOf(rootNode)
+        )
+
+        val renderer = ConsoleRenderer(noColor = true, useAscii = false, treeMaxDepth = 1)
+        renderer.render(report)
+        assertNotNull(renderer)
+    }
 }

@@ -54,7 +54,9 @@ object MavenIntegration {
                     artifactId = dep.artifactId,
                     version = dep.version ?: "unknown",
                     parent = null,
-                    children = mutableListOf()
+                    children = mutableListOf(),
+                    scope = dep.scope,
+                    isDependencyManagement = dep.section == com.depanalyzer.parser.DependencySection.DEPENDENCY_MANAGEMENT
                 )
             }.distinctBy { "${it.groupId}:${it.artifactId}" }
         } catch (e: IllegalArgumentException) {

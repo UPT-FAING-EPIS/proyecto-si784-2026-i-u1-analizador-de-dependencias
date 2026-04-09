@@ -3,30 +3,10 @@ package com.depanalyzer.parser.gradle
 import com.depanalyzer.core.graph.DependencyNode
 import com.depanalyzer.parser.GradleGroovyDependencyParser
 import com.depanalyzer.parser.GradleKotlinDependencyParser
-import com.depanalyzer.parser.GradleRepositoryParser
-import com.depanalyzer.parser.ParsedDependency
-import com.depanalyzer.parser.ParsedGradleDependency
-import com.depanalyzer.parser.DependencySection
 import java.io.File
 
-/**
- * Orchestrates Gradle dependency analysis using a two-tier strategy:
- * 1. Primary: Execute "gradle dependencies" to get full dependency tree
- * 2. Fallback: Use static parsing (regex-based) if gradle is unavailable
- *
- * Similar to MavenIntegration but for Gradle projects.
- */
 object GradleIntegration {
 
-    /**
-     * Analyzes a Gradle project to extract dependencies.
-     * Uses dynamic analysis (gradle dependencies) if available, falls back to static parsing.
-     *
-     * @param projectDir the gradle project directory
-     * @param enableGradle whether to enable gradle command execution (default: true)
-     * @param verbose whether to print verbose output (default: false)
-     * @return list of DependencyNodes representing the dependency tree
-     */
     fun analyzeGradleProject(
         projectDir: File,
         enableGradle: Boolean = true,
@@ -34,7 +14,6 @@ object GradleIntegration {
     ): List<DependencyNode> {
         require(projectDir.exists() && projectDir.isDirectory) { "Project directory must exist: ${projectDir.absolutePath}" }
 
-        // Check if dynamic analysis is disabled
         if (!enableGradle) {
             if (verbose) {
                 System.err.println("[GradleIntegration] Dynamic Gradle analysis disabled, using static parsing")
@@ -42,7 +21,6 @@ object GradleIntegration {
             return fallbackToStaticParsing(projectDir, verbose)
         }
 
-        // Check if Gradle is available
         if (!GradleDetector.isAvailable()) {
             if (verbose) {
                 System.err.println("[GradleIntegration] Gradle not found in PATH, falling back to static parsing")
@@ -50,7 +28,6 @@ object GradleIntegration {
             return fallbackToStaticParsing(projectDir, verbose)
         }
 
-        // Attempt to execute gradle dependencies
         return try {
             if (verbose) {
                 System.err.println("[GradleIntegration] Starting dynamic Gradle analysis")
@@ -85,21 +62,11 @@ object GradleIntegration {
         }
     }
 
-    /**
-     * Falls back to static parsing (regex-based) when dynamic analysis is unavailable.
-     * Detects whether the project uses Groovy DSL (build.gradle) or Kotlin DSL (build.gradle.kts)
-     * and uses the appropriate parser.
-     *
-     * @param projectDir the gradle project directory
-     * @param verbose whether to print verbose output
-     * @return list of DependencyNodes from static parsing
-     */
     private fun fallbackToStaticParsing(projectDir: File, verbose: Boolean = false): List<DependencyNode> {
         if (verbose) {
             System.err.println("[GradleIntegration] Using static parsing fallback")
         }
 
-        // Detect build file type
         val buildFileKts = File(projectDir, "build.gradle.kts")
         val buildFileGroovy = File(projectDir, "build.gradle")
 
@@ -124,6 +91,7 @@ object GradleIntegration {
                     // Note: Version catalog loading would happen here in a real implementation
                     GradleKotlinDependencyParser().parse(buildFile)
                 }
+
                 else -> {
                     if (verbose) {
                         System.err.println("[GradleIntegration] Using Groovy DSL parser")
@@ -139,16 +107,31 @@ object GradleIntegration {
             emptyList()
         }
 
-        // Convert ParsedGradleDependency to DependencyNode
         return parsedDeps.filter { it.version != null }.map { dep ->
             DependencyNode(
                 id = "${dep.groupId}:${dep.artifactId}:${dep.version}",
                 groupId = dep.groupId,
                 artifactId = dep.artifactId,
-                version = dep.version!!,  // Safely unwrap since we filtered for non-null
+                version = dep.version!!,
                 parent = null,
-                children = mutableListOf()
+                children = mutableListOf(),
+                scope = mapConfigurationToScope(dep.configuration),
+                isDependencyManagement = false
             )
+        }
+    }
+
+    private fun mapConfigurationToScope(configName: String): String {
+        return when {
+            configName.contains("compile", ignoreCase = true) && !configName.contains("test", ignoreCase = true) ->
+                "compile"
+
+            configName.contains("runtime", ignoreCase = true) && !configName.contains("test", ignoreCase = true) ->
+                "runtime"
+
+            configName.contains("test", ignoreCase = true) -> "test"
+            configName.contains("provided", ignoreCase = true) -> "provided"
+            else -> "compile"
         }
     }
 }

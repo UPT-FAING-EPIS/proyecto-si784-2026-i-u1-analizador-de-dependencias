@@ -9,7 +9,9 @@ data class DependencyNode(
     val version: String,
     val parent: DependencyNode? = null,
     val children: MutableList<DependencyNode> = mutableListOf(),
-    val vulnerabilities: List<Vulnerability> = emptyList()
+    val vulnerabilities: List<Vulnerability> = emptyList(),
+    val scope: String? = null,
+    val isDependencyManagement: Boolean = false
 ) {
 
     val coordinate: String
