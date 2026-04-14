@@ -18,24 +18,30 @@ object CommandFinder {
 
         val isWindows = isWindowsOS()
 
-        val wrapperFileName = if (isWindows) wrapperNameWindows else wrapperName
-        val wrapperFile = File(projectDir, wrapperFileName)
+        val candidates = listOf(
+            Pair(wrapperNameWindows, true),
+            Pair(wrapperName, false)
+        )
 
-        val wrapperExists = if (isWindows) {
-            wrapperFile.exists()
-        } else {
-            wrapperFile.exists() && wrapperFile.canExecute()
-        }
+        for ((wrapperFileName, isWindowsVariant) in candidates) {
+            val wrapperFile = File(projectDir, wrapperFileName)
 
-        if (wrapperExists) {
-            if (verbose) {
-                System.err.println("[CommandFinder] Found project wrapper: ${wrapperFile.absolutePath}")
+            val wrapperExists = if (isWindowsVariant) {
+                wrapperFile.exists()
+            } else {
+                wrapperFile.exists() && wrapperFile.canExecute()
             }
-            return wrapperFile.absolutePath
-        }
 
-        if (verbose) {
-            System.err.println("[CommandFinder] Project wrapper not found: $wrapperFileName")
+            if (wrapperExists) {
+                if (verbose) {
+                    System.err.println("[CommandFinder] Found project wrapper: ${wrapperFile.absolutePath}")
+                }
+                return wrapperFile.absolutePath
+            }
+
+            if (verbose) {
+                System.err.println("[CommandFinder] Project wrapper not found: $wrapperFileName")
+            }
         }
 
         val globalCmd = if (isWindows) globalCommandWindows else globalCommand
