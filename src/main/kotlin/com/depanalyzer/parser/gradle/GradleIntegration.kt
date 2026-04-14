@@ -1,64 +1,81 @@
 package com.depanalyzer.parser.gradle
 
+import com.depanalyzer.cli.ProgressTracker
 import com.depanalyzer.core.graph.DependencyNode
 import com.depanalyzer.parser.GradleGroovyDependencyParser
 import com.depanalyzer.parser.GradleKotlinDependencyParser
 import java.io.File
+import kotlin.time.Duration.Companion.seconds
 
 object GradleIntegration {
 
     fun analyzeGradleProject(
         projectDir: File,
         enableGradle: Boolean = true,
-        verbose: Boolean = false
+        verbose: Boolean = false,
+        timeoutSeconds: Long = 1800L
     ): List<DependencyNode> {
         require(projectDir.exists() && projectDir.isDirectory) { "Project directory must exist: ${projectDir.absolutePath}" }
 
         if (!enableGradle) {
+            ProgressTracker.logWarning("Análisis dinámico deshabilitado. Usando análisis estático (menos preciso).")
             if (verbose) {
                 System.err.println("[GradleIntegration] Dynamic Gradle analysis disabled, using static parsing")
             }
             return fallbackToStaticParsing(projectDir, verbose)
         }
 
-        if (!GradleDetector.isAvailable()) {
-            System.err.println("⚠️ Gradle not found. Using static analysis (less precise).")
+        ProgressTracker.logSearching("Buscando Gradle...")
+        if (GradleDetector.findGradleCommand(projectDir, verbose) == null) {
+            ProgressTracker.logWarning("Gradle no encontrado. Usando análisis estático (menos preciso).")
             if (verbose) {
-                System.err.println("[GradleIntegration] Gradle not found in PATH, falling back to static parsing")
+                System.err.println("[GradleIntegration] No gradle command found (checked: project wrapper and global gradle), falling back to static parsing")
             }
             return fallbackToStaticParsing(projectDir, verbose)
         }
 
+        ProgressTracker.logProcessing("Analizando dependencias Gradle...")
         return try {
             if (verbose) {
                 System.err.println("[GradleIntegration] Starting dynamic Gradle analysis")
             }
 
-            val output = GradleCommandExecutor.execute(projectDir, verbose = verbose)
+            val output = GradleCommandExecutor.execute(
+                projectDir,
+                timeout = timeoutSeconds.seconds,
+                verbose = verbose,
+                isDefaultTimeout = (timeoutSeconds == 1800L)
+            )
                 ?: run {
-                    System.err.println("⚠️ Dynamic analysis failed. Using static analysis (less precise).")
+                    val errorInfo = GradleCommandExecutor.getLastErrorInfo()
+                    val errorReason = errorInfo?.let { " (${it.message})" } ?: ""
+                    ProgressTracker.logWarning("Análisis dinámico falló$errorReason. Usando análisis estático (menos preciso).")
                     if (verbose) {
                         System.err.println("[GradleIntegration] Gradle command returned null, falling back to static parsing")
+                        if (errorInfo != null) {
+                            System.err.println("[GradleIntegration] Error type: ${errorInfo.type}")
+                            System.err.println("[GradleIntegration] Suggested flags: ${errorInfo.suggestedFlags}")
+                        }
                     }
                     return fallbackToStaticParsing(projectDir, verbose)
                 }
 
             val nodes = GradleDependencyTreeParser.parse(output, verbose)
             if (nodes.isEmpty()) {
-                System.err.println("⚠️ Dynamic analysis failed. Using static analysis (less precise).")
+                ProgressTracker.logWarning("Análisis dinámico falló. Usando análisis estático (menos preciso).")
                 if (verbose) {
                     System.err.println("[GradleIntegration] Gradle output parsing produced no nodes, falling back to static parsing")
                 }
                 fallbackToStaticParsing(projectDir, verbose)
             } else {
-                System.err.println("✓ Using dynamic analysis (precise)")
                 if (verbose) {
                     System.err.println("[GradleIntegration] Successfully parsed ${nodes.size} root dependencies from gradle")
                 }
+                ProgressTracker.logSuccess("${nodes.size} dependencias encontradas")
                 nodes
             }
         } catch (e: Exception) {
-            System.err.println("⚠️ Dynamic analysis failed. Using static analysis (less precise).")
+            ProgressTracker.logWarning("Análisis dinámico falló. Usando análisis estático (menos preciso).")
             if (verbose) {
                 System.err.println("[GradleIntegration] Exception during Gradle analysis, falling back to static parsing")
                 e.printStackTrace(System.err)
@@ -86,14 +103,12 @@ object GradleIntegration {
             }
         }
 
-        // Parse using appropriate parser
         val parsedDeps = try {
             when {
                 buildFile.name == "build.gradle.kts" -> {
                     if (verbose) {
                         System.err.println("[GradleIntegration] Using Kotlin DSL parser")
                     }
-                    // Note: Version catalog loading would happen here in a real implementation
                     GradleKotlinDependencyParser().parse(buildFile)
                 }
 
@@ -112,7 +127,7 @@ object GradleIntegration {
             emptyList()
         }
 
-        return parsedDeps.filter { it.version != null }.map { dep ->
+        val nodes = parsedDeps.filter { it.version != null }.map { dep ->
             DependencyNode(
                 id = "${dep.groupId}:${dep.artifactId}:${dep.version}",
                 groupId = dep.groupId,
@@ -124,6 +139,9 @@ object GradleIntegration {
                 isDependencyManagement = false
             )
         }
+
+        ProgressTracker.logSuccess("${nodes.size} dependencias encontradas (análisis estático)")
+        return nodes
     }
 
     private fun mapConfigurationToScope(configName: String): String {

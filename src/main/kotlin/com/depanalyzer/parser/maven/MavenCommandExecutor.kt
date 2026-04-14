@@ -1,16 +1,19 @@
 package com.depanalyzer.parser.maven
 
+import com.depanalyzer.cli.ProgressTracker
 import java.io.File
+import java.util.concurrent.TimeUnit
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
 object MavenCommandExecutor {
-    private const val DEFAULT_TIMEOUT_SECONDS = 180L
+    private const val DEFAULT_TIMEOUT_SECONDS = 1800L
 
     fun execute(
         projectDir: File,
         timeout: Duration = DEFAULT_TIMEOUT_SECONDS.seconds,
-        verbose: Boolean = false
+        verbose: Boolean = false,
+        isDefaultTimeout: Boolean = true
     ): String? = try {
         if (!projectDir.exists() || !projectDir.isDirectory) {
             if (verbose) System.err.println("[MavenCommandExecutor] Project directory doesn't exist or is not a directory")
@@ -23,17 +26,27 @@ object MavenCommandExecutor {
             return null
         }
 
-        val isWindows = System.getProperty("os.name").lowercase().contains("windows")
-        val command = if (isWindows) "mvn.cmd" else "mvn"
+        val mavenCommand = MavenDetector.findMavenCommand(projectDir, verbose)
+            ?: run {
+                if (verbose) System.err.println("[MavenCommandExecutor] Maven not found (no wrapper and no global mvn)")
+                return null
+            }
 
-        if (verbose) System.err.println("[MavenCommandExecutor] Executing 'mvn dependency:tree' in $projectDir")
+        ProgressTracker.logProcessing("Descargando dependencias (puede tardar varios minutos)...")
+        if (isDefaultTimeout) {
+            ProgressTracker.logStep("   ⏳ Se cancelará en: ${timeout.inWholeSeconds}s (30 minutos)")
+        } else {
+            ProgressTracker.logStep("   ⏳ Timeout: ${timeout.inWholeSeconds}s")
+        }
 
-        val process = ProcessBuilder(command, "dependency:tree")
+        if (verbose) System.err.println("[MavenCommandExecutor] Executing 'mvn dependency:tree' in $projectDir using: $mavenCommand")
+
+        val process = ProcessBuilder(mavenCommand, "dependency:tree")
             .directory(projectDir)
             .redirectErrorStream(true)
             .start()
 
-        val completed = process.waitFor(timeout.inWholeSeconds, java.util.concurrent.TimeUnit.SECONDS)
+        val completed = process.waitFor(timeout.inWholeSeconds, TimeUnit.SECONDS)
 
         if (!completed) {
             process.destroyForcibly()
@@ -46,7 +59,7 @@ object MavenCommandExecutor {
         }
 
         val exitCode = process.exitValue()
-        
+
         if (verbose) {
             System.err.println("[MavenCommandExecutor] Execution completed with exit code $exitCode")
             System.err.println("[MavenCommandExecutor] Output length: ${output.length} characters")
@@ -63,7 +76,8 @@ object MavenCommandExecutor {
         if (exitCode != 0 && verbose) {
             System.err.println("[MavenCommandExecutor] Non-zero exit code ($exitCode), but returning output anyway (likely warnings)")
         }
-        
+
+        ProgressTracker.logSuccess("Árbol de dependencias resuelto (${output.length} chars)")
         output
     } catch (e: Exception) {
         if (verbose) {

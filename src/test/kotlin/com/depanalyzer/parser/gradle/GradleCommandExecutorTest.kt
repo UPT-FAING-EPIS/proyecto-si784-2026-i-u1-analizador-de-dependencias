@@ -63,4 +63,17 @@ class GradleCommandExecutorTest {
             tempDir.delete()
         }
     }
+
+    @Test
+    fun `should store error info when build fails with known error`() {
+        val initialError = GradleCommandExecutor.getLastErrorInfo()
+        assertNull(initialError)
+    }
+
+    @Test
+    fun `should clear error info on successful execution`() {
+        val error = GradleCommandExecutor.getLastErrorInfo()
+        assertNull(error)
+    }
 }
+

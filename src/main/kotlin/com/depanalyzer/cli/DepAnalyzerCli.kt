@@ -72,9 +72,14 @@ class Analyze : CliktCommand() {
         "--tree-expand",
         help = "Modo de expansión del árbol: collapsed, critical, high, medium, all (default: all)"
     )
+    private val timeout: Int? by option(
+        "--timeout",
+        help = "Timeout en segundos para descarga de dependencias (default: 1800s = 30 min)"
+    ).int()
 
     override fun run() {
-        echo("Iniciando análisis en $path...")
+        val startTime = System.currentTimeMillis()
+        ProgressTracker.logStart("Iniciando análisis en $path...")
 
         val token = getTokenFromCliOrEnv()
         val analyzer = ProjectAnalyzer(
@@ -96,6 +101,8 @@ class Analyze : CliktCommand() {
             }
         }
 
+        val timeoutSeconds = timeout?.toLong() ?: 1800L
+
         val report = try {
             analyzer.analyze(
                 path,
@@ -104,12 +111,17 @@ class Analyze : CliktCommand() {
                 disableGradle = disableGradle,
                 verbose = verbose,
                 treeMaxDepth = treeDepth,
-                treeExpandMode = expandMode
+                treeExpandMode = expandMode,
+                timeoutSeconds = timeoutSeconds
             )
         } catch (e: Exception) {
             echo("Error durante el análisis: ${e.message}", err = true)
             return
         }
+
+        val totalDuration = System.currentTimeMillis() - startTime
+        ProgressTracker.logSeparator()
+        ProgressTracker.logSuccess("Análisis completado", totalDuration)
 
         when {
             output?.lowercase() == "json" && verbose -> {
@@ -142,4 +154,6 @@ class Analyze : CliktCommand() {
 fun main(args: Array<String>) = Depanalyzer()
     .subcommands(Analyze())
     .main(args)
+
+
 

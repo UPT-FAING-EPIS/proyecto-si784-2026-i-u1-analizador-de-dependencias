@@ -1,5 +1,6 @@
 ﻿package com.depanalyzer.core
 
+import com.depanalyzer.cli.ProgressTracker
 import com.depanalyzer.core.graph.ChainResolver
 import com.depanalyzer.core.graph.DependencyGraphBuilder
 import com.depanalyzer.parser.*
@@ -25,17 +26,22 @@ class ProjectAnalyzer(
         disableGradle: Boolean = false,
         verbose: Boolean = false,
         treeMaxDepth: Int? = null,
-        treeExpandMode: TreeExpandMode = TreeExpandMode.ALL
+        treeExpandMode: TreeExpandMode = TreeExpandMode.ALL,
+        timeoutSeconds: Long = 1800L
     ): DependencyReport {
         val type = projectDetector.detect(projectDir)
         val dirFile = projectDir.toFile()
 
+        ProgressTracker.logDetected("Proyecto detectado: $type")
+
         val (dependencies, repositories, rootNodes) = when (type) {
             ProjectType.MAVEN -> {
+                ProgressTracker.logProcessing("Analizando proyecto Maven...")
                 val mavenNodes = MavenIntegration.analyzeMavenProject(
                     projectDir = dirFile,
                     enableMaven = !disableMaven,
-                    verbose = verbose
+                    verbose = verbose,
+                    timeoutSeconds = timeoutSeconds
                 )
 
                 val parsedDeps = mavenNodes.flatMap { node ->
@@ -48,10 +54,12 @@ class ProjectAnalyzer(
             }
 
             ProjectType.GRADLE_GROOVY -> {
+                ProgressTracker.logProcessing("Analizando proyecto Gradle (build.gradle)...")
                 val gradleNodes = GradleIntegration.analyzeGradleProject(
                     projectDir = dirFile,
                     enableGradle = !disableGradle,
-                    verbose = verbose
+                    verbose = verbose,
+                    timeoutSeconds = timeoutSeconds
                 )
 
                 val parsedDeps = gradleNodes.flatMap { node ->
@@ -63,10 +71,12 @@ class ProjectAnalyzer(
             }
 
             ProjectType.GRADLE_KOTLIN -> {
+                ProgressTracker.logProcessing("Analizando proyecto Gradle (build.gradle.kts)...")
                 val gradleNodes = GradleIntegration.analyzeGradleProject(
                     projectDir = dirFile,
                     enableGradle = !disableGradle,
-                    verbose = verbose
+                    verbose = verbose,
+                    timeoutSeconds = timeoutSeconds
                 )
 
                 val parsedDeps = gradleNodes.flatMap { node ->
@@ -97,11 +107,12 @@ class ProjectAnalyzer(
             }
         }
 
+        ProgressTracker.logSecurity("Consultando vulnerabilidades...")
         val vulnerabilityMap = try {
             ossIndexClient.getVulnerabilities(dependencies)
         } catch (e: Exception) {
-            System.err.println("⚠️ Warning: OSS Index authentication failed (401). Vulnerability analysis skipped. Please set OSS_INDEX_USER and OSS_INDEX_TOKEN to enable.")
-            if (e.message != null) {
+            ProgressTracker.logWarning("OSS Index authentication failed (401). Vulnerability analysis skipped.")
+            if (verbose) {
                 System.err.println("  Details: ${e.message}")
             }
             emptyMap()
@@ -119,9 +130,8 @@ class ProjectAnalyzer(
             emptyList()
         }
 
+        ProgressTracker.logBuilding("Construyendo árbol de dependencias...")
         val dependencyTree = buildDependencyTree(
-            dependencies = dependencies,
-            directDependencies = directDependencies,
             vulnerabilityMap = vulnerabilityMap,
             outdatedMap = outdated,
             maxDepth = treeMaxDepth,
@@ -141,8 +151,6 @@ class ProjectAnalyzer(
     }
 
     private fun buildDependencyTree(
-        dependencies: List<ParsedDependency>,
-        directDependencies: List<ParsedDependency>,
         vulnerabilityMap: Map<String, List<Vulnerability>>,
         outdatedMap: List<OutdatedDependency>,
         maxDepth: Int?,
@@ -153,7 +161,6 @@ class ProjectAnalyzer(
             return null
         }
 
-        val directCoordinates = directDependencies.map { "${it.groupId}:${it.artifactId}:${it.version}" }.toSet()
         val outdatedByCoordinate = outdatedMap.associate {
             "${it.groupId}:${it.artifactId}:${it.currentVersion}" to it
         }
