@@ -7,9 +7,7 @@ import com.depanalyzer.parser.*
 import com.depanalyzer.parser.gradle.GradleIntegration
 import com.depanalyzer.parser.maven.MavenIntegration
 import com.depanalyzer.report.*
-import com.depanalyzer.repository.OssIndexClient
-import com.depanalyzer.repository.ProjectRepository
-import com.depanalyzer.repository.RepositoryClient
+import com.depanalyzer.repository.*
 import java.io.File
 import java.nio.file.Path
 import kotlin.io.path.name
@@ -17,6 +15,7 @@ import kotlin.io.path.name
 class ProjectAnalyzer(
     private val repositoryClient: RepositoryClient = RepositoryClient(),
     private val ossIndexClient: OssIndexClient = OssIndexClient(),
+    private val nvdClient: NvdClient = NvdClient(),
     private val projectDetector: ProjectDetector = ProjectDetector()
 ) {
     fun analyze(
@@ -27,7 +26,8 @@ class ProjectAnalyzer(
         verbose: Boolean = false,
         treeMaxDepth: Int? = null,
         treeExpandMode: TreeExpandMode = TreeExpandMode.ALL,
-        timeoutSeconds: Long = 1800L
+        timeoutSeconds: Long = 1800L,
+        useNvd: Boolean = false
     ): DependencyReport {
         val type = projectDetector.detect(projectDir)
         val dirFile = projectDir.toFile()
@@ -109,7 +109,23 @@ class ProjectAnalyzer(
 
         ProgressTracker.logSecurity("Consultando vulnerabilidades...")
         val vulnerabilityMap = try {
-            ossIndexClient.getVulnerabilities(dependencies)
+            val ossIndexVulns = ossIndexClient.getVulnerabilities(dependencies)
+
+            if (useNvd) {
+                ProgressTracker.logSecurity("Enriqueciendo con datos de NVD...")
+                val nvdVulns = try {
+                    nvdClient.getVulnerabilities(dependencies)
+                } catch (e: Exception) {
+                    if (verbose) {
+                        System.err.println("  NVD enrichment failed: ${e.message}")
+                    }
+                    emptyMap()
+                }
+
+                VulnerabilityMerger.mergeVulnerabilities(ossIndexVulns, nvdVulns)
+            } else {
+                ossIndexVulns
+            }
         } catch (e: Exception) {
             ProgressTracker.logWarning("OSS Index authentication failed (401). Vulnerability analysis skipped.")
             if (verbose) {

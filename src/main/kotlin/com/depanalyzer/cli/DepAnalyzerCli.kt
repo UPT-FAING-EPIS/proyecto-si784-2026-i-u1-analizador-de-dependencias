@@ -4,6 +4,7 @@ import com.depanalyzer.core.ProjectAnalyzer
 import com.depanalyzer.report.ConsoleRenderer
 import com.depanalyzer.report.ReportGenerator
 import com.depanalyzer.report.TreeExpandMode
+import com.depanalyzer.repository.NvdClient
 import com.depanalyzer.repository.OssIndexClient
 import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.core.Context
@@ -76,14 +77,26 @@ class Analyze : CliktCommand() {
         "--timeout",
         help = "Timeout en segundos para descarga de dependencias (default: 1800s = 30 min)"
     ).int()
+    private val useNvd: Boolean by option(
+        "--use-nvd",
+        help = "Enriquece vulnerabilidades con datos de NVD (requiere NVD_API_KEY)"
+    ).flag()
 
     override fun run() {
         val startTime = System.currentTimeMillis()
         ProgressTracker.logStart("Iniciando análisis en $path...")
 
         val token = getTokenFromCliOrEnv()
+        val nvdApiKey = getNvdApiKeyFromEnv()
+        
+        if (useNvd && nvdApiKey == null) {
+            echo("Advertencia: --use-nvd requiere la variable de entorno NVD_API_KEY", err = true)
+            echo("Las solicitudes sin token están limitadas a ~50 req/hora", err = true)
+        }
+        
         val analyzer = ProjectAnalyzer(
-            ossIndexClient = OssIndexClient(token = token)
+            ossIndexClient = OssIndexClient(token = token),
+            nvdClient = NvdClient(apiKey = nvdApiKey)
         )
 
         val expandMode = when (treeExpand?.lowercase()) {
@@ -112,7 +125,8 @@ class Analyze : CliktCommand() {
                 verbose = verbose,
                 treeMaxDepth = treeDepth,
                 treeExpandMode = expandMode,
-                timeoutSeconds = timeoutSeconds
+                timeoutSeconds = timeoutSeconds,
+                useNvd = useNvd
             )
         } catch (e: Exception) {
             echo("Error durante el análisis: ${e.message}", err = true)
@@ -148,6 +162,10 @@ class Analyze : CliktCommand() {
 
     private fun getTokenFromCliOrEnv(): String? {
         return ossIndexToken ?: System.getenv("OSS_INDEX_TOKEN")
+    }
+    
+    private fun getNvdApiKeyFromEnv(): String? {
+        return System.getenv("NVD_API_KEY")
     }
 }
 

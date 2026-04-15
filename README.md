@@ -9,6 +9,7 @@ desactualizadas y vulnerabilidades de seguridad (CVEs).
 - Detección automática del tipo de proyecto.
 - Resolución de repositorios del proyecto.
 - Análisis de CVEs (Sonatype OSS Index).
+- **Enriquecimiento con NIST NVD** - CVSS v3 scores y datos oficiales de CVE.
 - Sugerencias de actualización interactivas.
 
 ## Requisitos
@@ -115,6 +116,126 @@ Get-Content .env | ForEach-Object {
 ./gradlew run
 ```
 
+## Configuración de NIST NVD (Opcional)
+
+Para enriquecer los análisis de vulnerabilidades de OSS Index con datos oficiales de NIST NVD y puntuaciones CVSS v3:
+
+### ¿Por qué usar NVD?
+
+NIST NVD proporciona:
+
+- **CVSS v3.1 scores** - Puntuaciones más actuales y precisas
+- **Datos oficiales de CVE** - Información autorizada directamente de NIST
+- **Referencias completas** - Enlaces y detalles técnicos adicionales
+
+**Límites de API:**
+
+| Configuración | Límite de Solicitudes | Recomendado para                  |
+|:--------------|:----------------------|:----------------------------------|
+| Sin token     | ~50 req/hora          | Análisis puntuales (muy limitado) |
+| Con token     | ~200+ req/hora        | Desarrollo, CI/CD, producción     |
+
+### Obtener un NVD_API_KEY
+
+1. Dirígete a [https://nvd.nist.gov/developers/request-an-api-key](https://nvd.nist.gov/developers/request-an-api-key)
+2. Completa el formulario con:
+    - Nombre y email
+    - Organización
+    - Uso previsto
+3. **Copia tu API key inmediatamente** — se mostrará solo una vez
+4. Configura la variable de entorno (ver abajo)
+
+### Configurar NVD_API_KEY
+
+#### Opción 1: Variable de entorno (Recomendado)
+
+**Linux/macOS:**
+
+```bash
+export NVD_API_KEY="tu_api_key_aqui"
+./build/install/depanalyzer/bin/depanalyzer analyze . --use-nvd
+```
+
+**Windows (PowerShell):**
+
+```powershell
+$env:NVD_API_KEY="tu_api_key_aqui"
+./build/install/depanalyzer/bin/depanalyzer.bat analyze . --use-nvd
+```
+
+**Windows (CMD):**
+
+```cmd
+set NVD_API_KEY=tu_api_key_aqui
+./build/install/depanalyzer/bin/depanalyzer.bat analyze . --use-nvd
+```
+
+#### Opción 2: Archivo `.env` (Para desarrollo local)
+
+Agrega a tu archivo `.env`:
+
+```ini
+OSS_INDEX_TOKEN=tu_token_aqui
+NVD_API_KEY=tu_api_key_aqui
+```
+
+Luego ejecuta:
+
+```bash
+# Linux/macOS
+source .env
+./gradlew run --args="analyze . --use-nvd"
+
+# Windows (PowerShell)
+Get-Content .env | ForEach-Object { 
+    $parts = $_ -split '='; 
+    if ($parts.Count -eq 2) { 
+        [System.Environment]::SetEnvironmentVariable($parts[0], $parts[1]) 
+    } 
+}
+./gradlew run --args="analyze . --use-nvd"
+```
+
+### Uso con --use-nvd
+
+El flag `--use-nvd` activa el enriquecimiento con NIST NVD:
+
+```bash
+# Con NVD (requiere NVD_API_KEY en el entorno)
+./build/install/depanalyzer/bin/depanalyzer analyze . --use-nvd
+
+# Modo verbose con NVD (muestra fuentes de vulnerabilidades)
+./build/install/depanalyzer/bin/depanalyzer analyze . --verbose --use-nvd
+
+# Con JSON y NVD
+./build/install/depanalyzer/bin/depanalyzer analyze . -o json --use-nvd
+```
+
+**Nota:** Si usas `--use-nvd` sin configurar NVD_API_KEY, el analizador funcionará con limitación de ~50 req/hora.
+
+### Estrategia de Enriquecimiento
+
+Cuando `--use-nvd` está activo, el analizador:
+
+1. Obtiene vulnerabilidades de **OSS Index** (como siempre)
+2. Busca en **NIST NVD** vulnerabilidades adicionales usando transformación Maven→CPE
+3. **Fusiona** los resultados:
+    - Misma CVE en ambas fuentes → usa **CVSS v3 de NVD** (más oficial)
+    - CVEs solo en NVD → las **incluye automáticamente**
+    - CVEs solo en OSS Index → las **mantiene como están**
+4. Marca en los resultados la **fuente de cada CVE** (OSS_INDEX, NVD, o BOTH)
+
+**Ejemplo en modo verbose:**
+
+```
+🔴 [CVE-2021-12345] CRITICAL (9.8) [Source: BOTH]
+   OSS Index Score: 7.5
+   NVD CVSS v3: 9.8 ← Usado (más alto)
+
+🔴 [CVE-2022-99999] CRITICAL (9.5) [Source: NVD]
+   Encontrado solo en NIST NVD
+```
+
 ## Instalación para Pruebas
 
 Para preparar el entorno de ejecución local y generar los scripts de inicio:
@@ -148,14 +269,15 @@ Analiza un proyecto en el directorio especificado:
 
 El comando `analyze` acepta las siguientes opciones:
 
-| Opción                    | Descripción                                                                                                      |
-|:--------------------------|:-----------------------------------------------------------------------------------------------------------------|
-| `<path>`                  | **(Requerido)** Ruta al directorio raíz del proyecto a analizar (ej: `.`).                                       |
-| `-t`, `--oss-index-token` | Token de autenticación para OSS Index API. Si no se proporciona, busca la variable de entorno `OSS_INDEX_TOKEN`. |
-| `-o`, `--output json`     | Cambia el formato de salida a JSON (útil para automatización).                                                   |
-| `--no-color`              | Desactiva los colores ANSI y estilos en la consola (útil para CI/CD).                                            |
-| `-v`, `--verbose`         | Modo detallado - muestra la estructura completa del modelo con tabla detallada de vulnerabilidades.              |
-| `-h`, `--help`            | Muestra la ayuda del comando y las opciones disponibles.                                                         |
+| Opción                    | Descripción                                                                                                                                      |
+|:--------------------------|:-------------------------------------------------------------------------------------------------------------------------------------------------|
+| `<path>`                  | **(Requerido)** Ruta al directorio raíz del proyecto a analizar (ej: `.`).                                                                       |
+| `-t`, `--oss-index-token` | Token de autenticación para OSS Index API. Si no se proporciona, busca la variable de entorno `OSS_INDEX_TOKEN`.                                 |
+| `--use-nvd`               | Enriquece vulnerabilidades con datos de NIST NVD (requiere `NVD_API_KEY`). Ver [Configuración de NIST NVD](#configuración-de-nist-nvd-opcional). |
+| `-o`, `--output json`     | Cambia el formato de salida a JSON (útil para automatización).                                                                                   |
+| `--no-color`              | Desactiva los colores ANSI y estilos en la consola (útil para CI/CD).                                                                            |
+| `-v`, `--verbose`         | Modo detallado - muestra la estructura completa del modelo con tabla detallada de vulnerabilidades.                                              |
+| `-h`, `--help`            | Muestra la ayuda del comando y las opciones disponibles.                                                                                         |
 
 ### Ejemplos
 
@@ -172,6 +294,15 @@ El comando `analyze` acepta las siguientes opciones:
 # Modo verbose con JSON (estructura completa del modelo)
 ./build/install/depanalyzer/bin/depanalyzer analyze . --verbose --output json
 
+# Enriquecer con NIST NVD (requiere NVD_API_KEY configurado)
+./build/install/depanalyzer/bin/depanalyzer analyze . --use-nvd
+
+# Modo verbose con NVD (muestra fuentes de CVEs: OSS_INDEX, NVD, BOTH)
+./build/install/depanalyzer/bin/depanalyzer analyze . --verbose --use-nvd
+
+# JSON con enriquecimiento NVD
+./build/install/depanalyzer/bin/depanalyzer analyze . -o json --use-nvd
+
 # Usar token por línea de comandos (versión larga)
 ./build/install/depanalyzer/bin/depanalyzer --oss-index-token "tu_token" analyze .
 
@@ -183,6 +314,9 @@ El comando `analyze` acepta las siguientes opciones:
 
 # Combinar token + verbose + JSON (versión corta)
 ./build/install/depanalyzer/bin/depanalyzer -t "tu_token" -v -o json analyze .
+
+# Token + NVD + verbose (análisis completo)
+./build/install/depanalyzer/bin/depanalyzer -t "tu_token" --use-nvd -v analyze .
 
 # Analizar un proyecto en otra ruta sin colores
 ./build/install/depanalyzer/bin/depanalyzer analyze C:/MisProyectos/JavaApp --no-color
