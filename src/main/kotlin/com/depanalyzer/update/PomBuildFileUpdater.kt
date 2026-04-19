@@ -1,6 +1,10 @@
 package com.depanalyzer.update
 
 import java.io.File
+import java.io.StringReader
+import javax.xml.XMLConstants
+import javax.xml.parsers.DocumentBuilderFactory
+import org.xml.sax.InputSource
 
 class PomBuildFileUpdater : BuildFileUpdater {
     override fun applyUpdate(buildFile: File, suggestion: UpdateSuggestion): Boolean {
@@ -40,8 +44,7 @@ class PomBuildFileUpdater : BuildFileUpdater {
         }
 
         if (replaced == content) return false
-        buildFile.writeText(replaced)
-        return true
+        return writeIfValidXml(buildFile, content, replaced)
     }
 
     private fun applyTransitiveOverride(buildFile: File, suggestion: UpdateSuggestion): Boolean {
@@ -95,8 +98,30 @@ class PomBuildFileUpdater : BuildFileUpdater {
         }
 
         if (finalContent == content) return false
-        buildFile.writeText(finalContent)
+        return writeIfValidXml(buildFile, content, finalContent)
+    }
+
+    private fun writeIfValidXml(buildFile: File, originalContent: String, candidateContent: String): Boolean {
+        if (candidateContent == originalContent) return false
+        if (!isWellFormedXml(candidateContent)) return false
+        buildFile.writeText(candidateContent)
         return true
+    }
+
+    private fun isWellFormedXml(content: String): Boolean {
+        return try {
+            val factory = DocumentBuilderFactory.newInstance()
+            factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true)
+            factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true)
+            factory.setFeature("http://xml.org/sax/features/external-general-entities", false)
+            factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false)
+            factory.isExpandEntityReferences = false
+            factory.isXIncludeAware = false
+            factory.newDocumentBuilder().parse(InputSource(StringReader(content)))
+            true
+        } catch (_: Exception) {
+            false
+        }
     }
 
     private fun replacePropertyValue(content: String, propertyName: String, suggestion: UpdateSuggestion): String {
