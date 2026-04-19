@@ -1,35 +1,67 @@
 ﻿package com.depanalyzer.cli
 
 import com.depanalyzer.core.ProjectAnalyzer
-import com.depanalyzer.report.ConsoleRenderer
-import com.depanalyzer.report.ReportGenerator
-import com.depanalyzer.report.TreeExpandMode
+import com.depanalyzer.report.*
 import com.depanalyzer.repository.NvdClient
 import com.depanalyzer.repository.OssIndexClient
-import com.github.ajalt.clikt.core.CliktCommand
-import com.github.ajalt.clikt.core.Context
-import com.github.ajalt.clikt.core.main
-import com.github.ajalt.clikt.core.subcommands
+import com.github.ajalt.clikt.core.*
 import com.github.ajalt.clikt.parameters.arguments.argument
+import com.github.ajalt.clikt.parameters.arguments.optional
 import com.github.ajalt.clikt.parameters.options.flag
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.types.int
 import com.github.ajalt.clikt.parameters.types.path
 import java.nio.file.Path
+import kotlin.io.path.writeText
 
 class Depanalyzer : CliktCommand() {
     override fun help(context: Context): String = "Analizador de Dependencias Java/Kotlin"
     override fun run() = Unit
 }
 
-class Analyze : CliktCommand() {
+data class AnalyzeExecutionRequest(
+    val projectPath: Path,
+    val includeChains: Boolean,
+    val disableMaven: Boolean,
+    val disableGradle: Boolean,
+    val verbose: Boolean,
+    val treeMaxDepth: Int?,
+    val treeExpandMode: TreeExpandMode,
+    val timeoutSeconds: Long,
+    val useNvd: Boolean,
+    val ossIndexToken: String?,
+    val nvdApiKey: String?
+)
+
+class Analyze(
+    private val analyzeExecutor: (AnalyzeExecutionRequest) -> DependencyReport = { request ->
+        val analyzer = ProjectAnalyzer(
+            ossIndexClient = OssIndexClient(token = request.ossIndexToken),
+            nvdClient = NvdClient(apiKey = request.nvdApiKey)
+        )
+
+        analyzer.analyze(
+            request.projectPath,
+            includeChains = request.includeChains,
+            disableMaven = request.disableMaven,
+            disableGradle = request.disableGradle,
+            verbose = request.verbose,
+            treeMaxDepth = request.treeMaxDepth,
+            treeExpandMode = request.treeExpandMode,
+            timeoutSeconds = request.timeoutSeconds,
+            useNvd = request.useNvd
+        )
+    },
+    private val jsonOutputPathProvider: (Path) -> Path = {
+        Path.of(System.getProperty("user.dir"), "dependency-report.json")
+    }
+) : CliktCommand() {
     override fun help(context: Context): String = "Analiza las dependencias de un proyecto"
 
-    private val path: Path by argument(help = "Ruta al directorio del proyecto").path(
-        mustExist = true,
-        canBeFile = false
-    )
-    private val output: String? by option("-o", "--output", help = "Formato de salida (json)")
+    private val path: Path? by argument(help = "Ruta al directorio del proyecto (default: directorio actual)")
+        .path(mustExist = true, canBeFile = false)
+        .optional()
+    private val output: String? by option("-o", "--output", help = "Formato de salida (json a archivo)")
     private val noColor: Boolean by option("--no-color", help = "Desactiva el color en la consola").flag()
     private val ossIndexToken: String? by option(
         "-t",
@@ -85,10 +117,26 @@ class Analyze : CliktCommand() {
         "--use-nvd",
         help = "Enriquece vulnerabilidades con datos de NVD (requiere NVD_API_KEY)"
     ).flag()
+    private val failOnCritical: Boolean by option(
+        "--fail-on-critical",
+        help = "Retorna exit code 1 si se detectan CVEs críticos"
+    ).flag()
 
     override fun run() {
+        val targetPath = path ?: Path.of(".")
         val startTime = System.currentTimeMillis()
-        ProgressTracker.logStart("Iniciando análisis en $path...")
+        ProgressTracker.logStart("Iniciando análisis en $targetPath...")
+        ProgressTracker.startProgress(
+            listOf(
+                "Detección",
+                "Parseo",
+                "Resolución de repos",
+                "Consulta de versiones",
+                "Árbol transitivo",
+                "CVEs",
+                "Reporte"
+            )
+        )
 
         val token = getTokenFromCliOrEnv()
         val nvdApiKey = getNvdApiKeyFromEnv()
@@ -97,11 +145,6 @@ class Analyze : CliktCommand() {
             echo("Advertencia: --use-nvd requiere la variable de entorno NVD_API_KEY", err = true)
             echo("Las solicitudes sin token están limitadas a ~50 req/hora", err = true)
         }
-
-        val analyzer = ProjectAnalyzer(
-            ossIndexClient = OssIndexClient(token = token),
-            nvdClient = NvdClient(apiKey = nvdApiKey)
-        )
 
         val expandMode = when (treeExpand?.lowercase()) {
             "collapsed" -> TreeExpandMode.COLLAPSED
@@ -121,47 +164,55 @@ class Analyze : CliktCommand() {
         val timeoutSeconds = timeout?.toLong() ?: 1800L
 
         val report = try {
-            analyzer.analyze(
-                path,
-                includeChains = showChains,
-                disableMaven = !dynamic || offline || disableMaven,
-                disableGradle = !dynamic || disableGradle,
-                verbose = verbose,
-                treeMaxDepth = treeDepth,
-                treeExpandMode = expandMode,
-                timeoutSeconds = timeoutSeconds,
-                useNvd = useNvd
+            analyzeExecutor(
+                AnalyzeExecutionRequest(
+                    projectPath = targetPath,
+                    includeChains = showChains,
+                    disableMaven = !dynamic || offline || disableMaven,
+                    disableGradle = !dynamic || disableGradle,
+                    verbose = verbose,
+                    treeMaxDepth = treeDepth,
+                    treeExpandMode = expandMode,
+                    timeoutSeconds = timeoutSeconds,
+                    useNvd = useNvd,
+                    ossIndexToken = token,
+                    nvdApiKey = nvdApiKey
+                )
             )
         } catch (e: Exception) {
             echo("Error durante el análisis: ${e.message}", err = true)
             return
         }
 
+        ProgressTracker.advanceProgress("Reporte")
         val totalDuration = System.currentTimeMillis() - startTime
         ProgressTracker.logSeparator()
+        ProgressTracker.completeProgress()
         ProgressTracker.logSuccess("Análisis completado", totalDuration)
 
-        when {
-            output?.lowercase() == "json" && verbose -> {
-                val generator = ReportGenerator()
-                echo(generator.toJsonVerbose(report))
-            }
-
-            output?.lowercase() == "json" -> {
-                val generator = ReportGenerator()
-                echo(generator.toJson(report))
-            }
-
-            verbose -> {
-                val renderer = ConsoleRenderer(noColor = noColor, useAscii = ascii, treeMaxDepth = treeDepth)
-                renderer.renderVerbose(report, showChains = showChains, detailedChains = chainDetail)
-            }
-
-            else -> {
-                val renderer = ConsoleRenderer(noColor = noColor, useAscii = ascii, treeMaxDepth = treeDepth)
-                renderer.render(report, showChains = showChains, detailedChains = chainDetail)
-            }
+        if (output?.lowercase() == "json") {
+            val generator = ReportGenerator()
+            val outputPath = jsonOutputPathProvider(targetPath)
+            val json = if (verbose) generator.toJsonVerbose(report) else generator.toJson(report)
+            outputPath.writeText(json)
+            echo("Reporte JSON exportado a: $outputPath")
+        } else if (verbose) {
+            val renderer = ConsoleRenderer(noColor = noColor, useAscii = ascii, treeMaxDepth = treeDepth)
+            renderer.renderVerbose(report, showChains = showChains, detailedChains = chainDetail)
+        } else {
+            val renderer = ConsoleRenderer(noColor = noColor, useAscii = ascii, treeMaxDepth = treeDepth)
+            renderer.render(report, showChains = showChains, detailedChains = chainDetail)
         }
+
+        if (failOnCritical && hasCriticalVulnerability(report)) {
+            throw ProgramResult(1)
+        }
+    }
+
+    private fun hasCriticalVulnerability(report: DependencyReport): Boolean {
+        return (report.directVulnerable + report.transitiveVulnerable)
+            .flatMap { it.vulnerabilities }
+            .any { it.severity == VulnerabilitySeverity.CRITICAL }
     }
 
     private fun getTokenFromCliOrEnv(): String? {

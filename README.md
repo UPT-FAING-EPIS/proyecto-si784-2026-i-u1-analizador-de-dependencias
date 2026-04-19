@@ -271,10 +271,11 @@ El comando `analyze` acepta las siguientes opciones:
 
 | Opción                    | Descripción                                                                                                                                      |
 |:--------------------------|:-------------------------------------------------------------------------------------------------------------------------------------------------|
-| `<path>`                  | **(Requerido)** Ruta al directorio raíz del proyecto a analizar (ej: `.`).                                                                       |
+| `<path>`                  | **(Opcional)** Ruta al directorio raíz del proyecto a analizar (default: directorio actual `.`).                                                 |
 | `-t`, `--oss-index-token` | Token de autenticación para OSS Index API. Si no se proporciona, busca la variable de entorno `OSS_INDEX_TOKEN`.                                 |
 | `--use-nvd`               | Enriquece vulnerabilidades con datos de NIST NVD (requiere `NVD_API_KEY`). Ver [Configuración de NIST NVD](#configuración-de-nist-nvd-opcional). |
-| `-o`, `--output json`     | Cambia el formato de salida a JSON (útil para automatización).                                                                                   |
+| `-o`, `--output json`     | Exporta el reporte en JSON al archivo `dependency-report.json` en el directorio actual.                                                          |
+| `--fail-on-critical`      | Retorna exit code `1` si se detectan vulnerabilidades `CRITICAL` (útil para CI/CD).                                                              |
 | `--no-color`              | Desactiva los colores ANSI y estilos en la consola (útil para CI/CD).                                                                            |
 | `-v`, `--verbose`         | Modo detallado - muestra la estructura completa del modelo con tabla detallada de vulnerabilidades.                                              |
 | `-h`, `--help`            | Muestra la ayuda del comando y las opciones disponibles.                                                                                         |
@@ -287,6 +288,12 @@ El comando `analyze` acepta las siguientes opciones:
 
 # Generar un reporte en formato JSON
 ./build/install/depanalyzer/bin/depanalyzer analyze . --output json
+
+# Analizar usando el directorio actual (sin pasar <path>)
+./build/install/depanalyzer/bin/depanalyzer analyze --output json
+
+# Fallar con exit code 1 si hay CVEs críticos (CI/CD)
+./build/install/depanalyzer/bin/depanalyzer analyze . --fail-on-critical
 
 # Modo verbose - mostrar tabla detallada de vulnerabilidades
 ./build/install/depanalyzer/bin/depanalyzer analyze . --verbose

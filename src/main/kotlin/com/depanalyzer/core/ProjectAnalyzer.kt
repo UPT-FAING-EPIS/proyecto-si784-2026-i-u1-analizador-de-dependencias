@@ -29,12 +29,14 @@ class ProjectAnalyzer(
         timeoutSeconds: Long = 1800L,
         useNvd: Boolean = false
     ): DependencyReport {
+        ProgressTracker.advanceProgress("Detección")
         val type = projectDetector.detect(projectDir)
         val dirFile = projectDir.toFile()
 
         ProgressTracker.logDetected("Proyecto detectado: $type")
 
-        val (dependencies, repositories, rootNodes) = when (type) {
+        ProgressTracker.advanceProgress("Parseo")
+        val (dependencies, rootNodes) = when (type) {
             ProjectType.MAVEN -> {
                 ProgressTracker.logProcessing("Analizando proyecto Maven...")
                 val mavenNodes = MavenIntegration.analyzeMavenProject(
@@ -47,10 +49,7 @@ class ProjectAnalyzer(
                 val parsedDeps = mavenNodes.flatMap { node ->
                     flattenNodeTree(node)
                 }
-
-                val parser = PomDependencyParser()
-                val pomFile = File(dirFile, "pom.xml")
-                Triple(parsedDeps, parser.repositories(pomFile), mavenNodes)
+                Pair(parsedDeps, mavenNodes)
             }
 
             ProjectType.GRADLE_GROOVY -> {
@@ -65,9 +64,7 @@ class ProjectAnalyzer(
                 val parsedDeps = gradleNodes.flatMap { node ->
                     flattenNodeTree(node)
                 }
-
-                val buildFile = File(dirFile, "build.gradle")
-                Triple(parsedDeps, GradleRepositoryParser().parse(buildFile), gradleNodes)
+                Pair(parsedDeps, gradleNodes)
             }
 
             ProjectType.GRADLE_KOTLIN -> {
@@ -82,9 +79,26 @@ class ProjectAnalyzer(
                 val parsedDeps = gradleNodes.flatMap { node ->
                     flattenNodeTree(node)
                 }
+                Pair(parsedDeps, gradleNodes)
+            }
+        }
 
+        ProgressTracker.advanceProgress("Resolución de repos")
+        val repositories = when (type) {
+            ProjectType.MAVEN -> {
+                val parser = PomDependencyParser()
+                val pomFile = File(dirFile, "pom.xml")
+                parser.repositories(pomFile)
+            }
+
+            ProjectType.GRADLE_GROOVY -> {
+                val buildFile = File(dirFile, "build.gradle")
+                GradleRepositoryParser().parse(buildFile)
+            }
+
+            ProjectType.GRADLE_KOTLIN -> {
                 val buildFile = File(dirFile, "build.gradle.kts")
-                Triple(parsedDeps, GradleRepositoryParser().parse(buildFile), gradleNodes)
+                GradleRepositoryParser().parse(buildFile)
             }
         }
 
@@ -92,6 +106,7 @@ class ProjectAnalyzer(
         val outdated = mutableListOf<OutdatedDependency>()
         val directDependencies = mutableListOf<ParsedDependency>()
 
+        ProgressTracker.advanceProgress("Consulta de versiones")
         dependencies.distinctBy { "${it.groupId}:${it.artifactId}" }.forEach { dep ->
             val currentVersion = dep.version
             if (currentVersion != null && !isVariable(currentVersion)) {
@@ -107,7 +122,17 @@ class ProjectAnalyzer(
             }
         }
 
+        ProgressTracker.advanceProgress("Árbol transitivo")
+        buildDependencyTree(
+            vulnerabilityMap = emptyMap(),
+            outdatedMap = outdated,
+            maxDepth = treeMaxDepth,
+            expandMode = treeExpandMode,
+            rootNodes = rootNodes
+        )
+
         ProgressTracker.logSecurity("Consultando vulnerabilidades...")
+        ProgressTracker.advanceProgress("CVEs")
         val vulnerabilityMap = try {
             val ossIndexVulns = ossIndexClient.getVulnerabilities(dependencies)
 
@@ -146,7 +171,7 @@ class ProjectAnalyzer(
             emptyList()
         }
 
-        ProgressTracker.logBuilding("Construyendo árbol de dependencias...")
+        ProgressTracker.logBuilding("Construyendo reporte final...")
         val dependencyTree = buildDependencyTree(
             vulnerabilityMap = vulnerabilityMap,
             outdatedMap = outdated,
