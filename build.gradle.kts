@@ -35,7 +35,7 @@ dependencies {
     implementation("tools.jackson.core:jackson-databind")
     implementation("tools.jackson.module:jackson-module-kotlin")
     implementation("tools.jackson.dataformat:jackson-dataformat-xml")
-    
+
     // XML parser (pom.xml)
     implementation("org.apache.maven:maven-model:3.9.14")
 }

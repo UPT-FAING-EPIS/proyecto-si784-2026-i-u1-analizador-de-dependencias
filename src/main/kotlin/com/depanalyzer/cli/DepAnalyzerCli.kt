@@ -53,6 +53,10 @@ class Analyze : CliktCommand() {
         "--offline",
         help = "Deshabilita Maven dependency:tree. Usa análisis estático (más rápido, menos preciso)"
     ).flag()
+    private val dynamic: Boolean by option(
+        "--dynamic",
+        help = "Fuerza análisis dinámico (más preciso, más lento). Por defecto: análisis estático"
+    ).flag(default = false)
     private val disableMaven: Boolean by option(
         "--disable-maven",
         help = "Fuerza el análisis estático desactivando Maven"
@@ -88,12 +92,12 @@ class Analyze : CliktCommand() {
 
         val token = getTokenFromCliOrEnv()
         val nvdApiKey = getNvdApiKeyFromEnv()
-        
+
         if (useNvd && nvdApiKey == null) {
             echo("Advertencia: --use-nvd requiere la variable de entorno NVD_API_KEY", err = true)
             echo("Las solicitudes sin token están limitadas a ~50 req/hora", err = true)
         }
-        
+
         val analyzer = ProjectAnalyzer(
             ossIndexClient = OssIndexClient(token = token),
             nvdClient = NvdClient(apiKey = nvdApiKey)
@@ -120,8 +124,8 @@ class Analyze : CliktCommand() {
             analyzer.analyze(
                 path,
                 includeChains = showChains,
-                disableMaven = offline || disableMaven,
-                disableGradle = disableGradle,
+                disableMaven = !dynamic || offline || disableMaven,
+                disableGradle = !dynamic || disableGradle,
                 verbose = verbose,
                 treeMaxDepth = treeDepth,
                 treeExpandMode = expandMode,
@@ -163,14 +167,14 @@ class Analyze : CliktCommand() {
     private fun getTokenFromCliOrEnv(): String? {
         return ossIndexToken ?: System.getenv("OSS_INDEX_TOKEN")
     }
-    
+
     private fun getNvdApiKeyFromEnv(): String? {
         return System.getenv("NVD_API_KEY")
     }
 }
 
 fun main(args: Array<String>) = Depanalyzer()
-    .subcommands(Analyze())
+    .subcommands(Analyze(), Update())
     .main(args)
 
 
