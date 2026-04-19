@@ -40,11 +40,10 @@ class UpdateCommandIntegrationTest {
             UpdateSuggestion("junit", "junit", "4.12", "4.13.2", UpdateReason.OUTDATED)
         )
         val planner = FixedPlanner(UpdatePlan(ProjectType.MAVEN, buildFile, suggestions))
-        val selected = setOf(suggestions.first())
 
         val command = Update(
             plannerFactory = { planner },
-            selectionProvider = { _, _ -> selected }
+            decisionProvider = scriptedDecisions(listOf(UpdateDecision.APPLY, UpdateDecision.SKIP))
         )
         val terminal = Terminal(ansiLevel = AnsiLevel.NONE)
         val results = command.executeUpdate(projectDir, terminal)
@@ -80,7 +79,7 @@ class UpdateCommandIntegrationTest {
         val planner = FixedPlanner(UpdatePlan(ProjectType.GRADLE_GROOVY, buildFile, suggestions))
         val command = Update(
             plannerFactory = { planner },
-            selectionProvider = { _, _ -> suggestions.toSet() }
+            decisionProvider = scriptedDecisions(listOf(UpdateDecision.APPLY_ALL))
         )
         val terminal = Terminal(ansiLevel = AnsiLevel.NONE)
         val results = command.executeUpdate(projectDir, terminal)
@@ -111,7 +110,7 @@ class UpdateCommandIntegrationTest {
         val planner = FixedPlanner(UpdatePlan(ProjectType.GRADLE_KOTLIN, buildFile, suggestions))
         val command = Update(
             plannerFactory = { planner },
-            selectionProvider = { _, _ -> emptySet() }
+            decisionProvider = scriptedDecisions(listOf(UpdateDecision.SKIP, UpdateDecision.SKIP))
         )
         val terminal = Terminal(ansiLevel = AnsiLevel.NONE)
         val results = command.executeUpdate(projectDir, terminal)
@@ -122,7 +121,81 @@ class UpdateCommandIntegrationTest {
         assertEquals(2, results.count { !it.applied })
     }
 
+    @Test
+    fun `dry run shows simulated changes without modifying build file`() {
+        val projectDir = Files.createTempDirectory("update-dry-run")
+        val buildFile = projectDir.resolve("pom.xml").toFile()
+        val original = """
+            <project>
+              <dependencies>
+                <dependency>
+                  <groupId>org.slf4j</groupId>
+                  <artifactId>slf4j-api</artifactId>
+                  <version>1.7.30</version>
+                </dependency>
+              </dependencies>
+            </project>
+        """.trimIndent()
+        buildFile.writeText(original)
+
+        val suggestions = listOf(
+            UpdateSuggestion("org.slf4j", "slf4j-api", "1.7.30", "2.0.13", UpdateReason.CVE)
+        )
+        val planner = FixedPlanner(UpdatePlan(ProjectType.MAVEN, buildFile, suggestions))
+        val command = Update(
+            plannerFactory = { planner },
+            decisionProvider = scriptedDecisions(listOf(UpdateDecision.APPLY))
+        )
+
+        val terminal = Terminal(ansiLevel = AnsiLevel.NONE)
+        val results = command.executeUpdate(projectDir, terminal, dryRun = true)
+
+        assertEquals(original, buildFile.readText())
+        assertFalse(projectDir.resolve("pom.xml.bak").toFile().exists())
+        assertEquals(1, results.count { it.applied })
+        assertTrue(results.first().note.contains("dry-run"))
+    }
+
+    @Test
+    fun `only security filters out outdated suggestions`() {
+        val projectDir = Files.createTempDirectory("update-only-security")
+        val buildFile = projectDir.resolve("build.gradle").toFile()
+        buildFile.writeText(
+            """
+            dependencies {
+                implementation 'org.slf4j:slf4j-api:1.7.30'
+                implementation 'junit:junit:4.12'
+            }
+            """.trimIndent()
+        )
+
+        val suggestions = listOf(
+            UpdateSuggestion("org.slf4j", "slf4j-api", "1.7.30", "2.0.13", UpdateReason.CVE),
+            UpdateSuggestion("junit", "junit", "4.12", "4.13.2", UpdateReason.OUTDATED)
+        )
+        val planner = FixedPlanner(UpdatePlan(ProjectType.GRADLE_GROOVY, buildFile, suggestions))
+        val command = Update(
+            plannerFactory = { planner },
+            decisionProvider = scriptedDecisions(listOf(UpdateDecision.APPLY))
+        )
+
+        val terminal = Terminal(ansiLevel = AnsiLevel.NONE)
+        val results = command.executeUpdate(projectDir, terminal, onlySecurity = true)
+
+        assertEquals(1, results.size)
+        assertEquals("org.slf4j:slf4j-api", results.first().suggestion.coordinate)
+        assertTrue(buildFile.readText().contains("org.slf4j:slf4j-api:2.0.13"))
+        assertTrue(buildFile.readText().contains("junit:junit:4.12"))
+    }
+
     private class FixedPlanner(private val plan: UpdatePlan) : UpdatePlanner {
         override fun plan(projectDir: Path, options: UpdateAnalysisOptions): UpdatePlan = plan
+    }
+
+    private fun scriptedDecisions(decisions: List<UpdateDecision>): (Terminal, UpdateSuggestion, Int, Int) -> UpdateDecision {
+        val iterator = decisions.iterator()
+        return { _, _, _, _ ->
+            if (iterator.hasNext()) iterator.next() else UpdateDecision.SKIP
+        }
     }
 }
