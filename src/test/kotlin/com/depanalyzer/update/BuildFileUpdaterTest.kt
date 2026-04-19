@@ -1,12 +1,12 @@
 package com.depanalyzer.update
 
 import org.junit.jupiter.api.Test
+import org.xml.sax.InputSource
 import java.io.File
 import java.io.StringReader
 import java.nio.file.Files
 import java.nio.file.Path
 import javax.xml.parsers.DocumentBuilderFactory
-import org.xml.sax.InputSource
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
@@ -42,7 +42,7 @@ class BuildFileUpdaterTest {
         assertTrue(updated)
         val text = pom.readText()
         assertTrue(text.contains("<spring.version>7.0.7</spring.version>"))
-        assertTrue(text.contains("<version>${'$'}{spring.version}</version>"))
+        assertTrue(text.contains($$"<version>${spring.version}</version>"))
         assertTrue(isWellFormedXml(text))
     }
 
@@ -74,7 +74,7 @@ class BuildFileUpdaterTest {
         assertTrue(updated)
         val text = pom.readText()
         assertTrue(text.contains("<kotlin.version>2.1.0</kotlin.version>"))
-        assertTrue(text.contains("<version>${'$'}{kotlin.version}</version>"))
+        assertTrue(text.contains($$"<version>${kotlin.version}</version>"))
         assertTrue(isWellFormedXml(text))
     }
 
@@ -88,7 +88,8 @@ class BuildFileUpdaterTest {
         )
 
         assertTrue(updated)
-        val expected = resourceText("poms/with-comments/pom.xml").replace("<version>1.7.30</version>", "<version>2.0.13</version>")
+        val expected =
+            resourceText("poms/with-comments/pom.xml").replace("<version>1.7.30</version>", "<version>2.0.13</version>")
         assertEquals(expected, pom.readText())
         assertTrue(isWellFormedXml(pom.readText()))
     }
@@ -123,13 +124,13 @@ class BuildFileUpdaterTest {
         val dir = Files.createTempDirectory("gradle-groovy-updater")
         val build = dir.resolve("build.gradle").toFile()
         build.writeText(
-            """
+            $$"""
             ext {
                 springVersion = '6.1.14'
             }
 
             dependencies {
-                implementation "org.springframework:spring-context:${'$'}{springVersion}"
+                implementation "org.springframework:spring-context:${springVersion}"
             }
             """.trimIndent()
         )
@@ -141,6 +142,53 @@ class BuildFileUpdaterTest {
 
         assertTrue(updated)
         assertTrue(build.readText().contains("springVersion = '7.0.7'"))
+    }
+
+    @Test
+    fun `gradle groovy updater updates string notation using real fixture preserving format`() {
+        val build = copyGradleFixture("gradles/simple/build.gradle", "build.gradle")
+        val original = build.readText()
+
+        val updated = GradleGroovyBuildFileUpdater().applyUpdate(
+            build,
+            UpdateSuggestion("org.slf4j", "slf4j-api", "2.0.13", "2.0.16", UpdateReason.OUTDATED)
+        )
+
+        assertTrue(updated)
+        val expected = original.replace("org.slf4j:slf4j-api:2.0.13", "org.slf4j:slf4j-api:2.0.16")
+        assertEquals(expected, build.readText())
+    }
+
+    @Test
+    fun `gradle groovy updater updates map notation using real fixture preserving format`() {
+        val build = copyGradleFixture("gradles/map-notation/build.gradle", "build.gradle")
+        val original = build.readText()
+
+        val updated = GradleGroovyBuildFileUpdater().applyUpdate(
+            build,
+            UpdateSuggestion("org.springframework", "spring-core", "6.1.14", "6.1.15", UpdateReason.OUTDATED)
+        )
+
+        assertTrue(updated)
+        val expected = original.replace("version: '6.1.14'", "version: '6.1.15'")
+        assertEquals(expected, build.readText())
+    }
+
+    @Test
+    fun `gradle groovy updater updates ext variable declaration using real fixture preserving format`() {
+        val build = copyGradleFixture("gradles/with-ext/build.gradle", "build.gradle")
+        val original = build.readText()
+
+        val updated = GradleGroovyBuildFileUpdater().applyUpdate(
+            build,
+            UpdateSuggestion("org.postgresql", "postgresql", "42.7.4", "42.7.5", UpdateReason.CVE)
+        )
+
+        assertTrue(updated)
+        val expected = original.replace("ext.postgresVersion = '42.7.4'", "ext.postgresVersion = '42.7.5'")
+        val text = build.readText()
+        assertEquals(expected, text)
+        assertTrue(text.contains("version: ext.postgresVersion"))
     }
 
     @Test
@@ -215,6 +263,29 @@ class BuildFileUpdaterTest {
             """.trimIndent(),
             toml.readText()
         )
+    }
+
+    @Test
+    fun `gradle kotlin updater updates libs versions toml from real fixtures preserving format`() {
+        val dir = Files.createTempDirectory("gradle-kotlin-catalog-fixture")
+        val build = dir.resolve("build.gradle.kts").toFile()
+        build.writeText(resourceText("gradles/kotlin-catalog/build.gradle.kts"))
+
+        val gradleDir = dir.resolve("gradle")
+        Files.createDirectories(gradleDir)
+        val toml = gradleDir.resolve("libs.versions.toml").toFile()
+        val originalToml = resourceText("gradle/libs.versions.toml")
+        toml.writeText(originalToml)
+
+        val updated = GradleKotlinBuildFileUpdater().applyUpdate(
+            build,
+            UpdateSuggestion("org.jetbrains.kotlin", "kotlin-stdlib", "2.0.21", "2.1.0", UpdateReason.OUTDATED)
+        )
+
+        assertTrue(updated)
+        val expectedToml = originalToml.replace("kotlin = \"2.0.21\"", "kotlin = \"2.1.0\"")
+        assertEquals(resourceText("gradles/kotlin-catalog/build.gradle.kts"), build.readText())
+        assertEquals(expectedToml, toml.readText())
     }
 
     @Test
@@ -323,6 +394,13 @@ class BuildFileUpdaterTest {
         val pom = dir.resolve("pom.xml")
         Files.writeString(pom, resourceText(resourcePath))
         return pom.toFile()
+    }
+
+    private fun copyGradleFixture(resourcePath: String, targetFileName: String): File {
+        val dir = Files.createTempDirectory("gradle-updater-fixture")
+        val build = dir.resolve(targetFileName)
+        Files.writeString(build, resourceText(resourcePath))
+        return build.toFile()
     }
 
     private fun resourceText(resourcePath: String): String {
