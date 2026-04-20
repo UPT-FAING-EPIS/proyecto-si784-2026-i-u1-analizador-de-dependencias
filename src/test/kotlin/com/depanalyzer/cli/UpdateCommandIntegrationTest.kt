@@ -14,7 +14,7 @@ import kotlin.test.assertTrue
 class UpdateCommandIntegrationTest {
 
     @Test
-    fun `maven flow applies one and skips one with explicit confirmations`() {
+    fun `maven flow applies selected and omits unselected`() {
         val projectDir = Files.createTempDirectory("update-maven")
         val buildFile = projectDir.resolve("pom.xml").toFile()
         val original = """
@@ -40,10 +40,11 @@ class UpdateCommandIntegrationTest {
             UpdateSuggestion("junit", "junit", "4.12", "4.13.2", UpdateReason.OUTDATED)
         )
         val planner = FixedPlanner(UpdatePlan(ProjectType.MAVEN, buildFile, suggestions))
+        val selected = setOf(suggestions.first())
 
         val command = Update(
             plannerFactory = { planner },
-            decisionProvider = scriptedDecisions(listOf(UpdateDecision.APPLY, UpdateDecision.SKIP))
+            selectionProvider = { _, _ -> selected }
         )
         val terminal = Terminal(ansiLevel = AnsiLevel.NONE)
         val results = command.executeUpdate(projectDir, terminal)
@@ -79,7 +80,7 @@ class UpdateCommandIntegrationTest {
         val planner = FixedPlanner(UpdatePlan(ProjectType.GRADLE_GROOVY, buildFile, suggestions))
         val command = Update(
             plannerFactory = { planner },
-            decisionProvider = scriptedDecisions(listOf(UpdateDecision.APPLY_ALL))
+            selectionProvider = { _, _ -> suggestions.toSet() }
         )
         val terminal = Terminal(ansiLevel = AnsiLevel.NONE)
         val results = command.executeUpdate(projectDir, terminal)
@@ -110,7 +111,7 @@ class UpdateCommandIntegrationTest {
         val planner = FixedPlanner(UpdatePlan(ProjectType.GRADLE_KOTLIN, buildFile, suggestions))
         val command = Update(
             plannerFactory = { planner },
-            decisionProvider = scriptedDecisions(listOf(UpdateDecision.SKIP, UpdateDecision.SKIP))
+            selectionProvider = { _, _ -> emptySet() }
         )
         val terminal = Terminal(ansiLevel = AnsiLevel.NONE)
         val results = command.executeUpdate(projectDir, terminal)
@@ -144,7 +145,7 @@ class UpdateCommandIntegrationTest {
         val planner = FixedPlanner(UpdatePlan(ProjectType.MAVEN, buildFile, suggestions))
         val command = Update(
             plannerFactory = { planner },
-            decisionProvider = scriptedDecisions(listOf(UpdateDecision.APPLY))
+            selectionProvider = { _, _ -> suggestions.toSet() }
         )
 
         val terminal = Terminal(ansiLevel = AnsiLevel.NONE)
@@ -176,7 +177,7 @@ class UpdateCommandIntegrationTest {
         val planner = FixedPlanner(UpdatePlan(ProjectType.GRADLE_GROOVY, buildFile, suggestions))
         val command = Update(
             plannerFactory = { planner },
-            decisionProvider = scriptedDecisions(listOf(UpdateDecision.APPLY))
+            selectionProvider = { _, visible -> visible.toSet() }
         )
 
         val terminal = Terminal(ansiLevel = AnsiLevel.NONE)
@@ -190,12 +191,5 @@ class UpdateCommandIntegrationTest {
 
     private class FixedPlanner(private val plan: UpdatePlan) : UpdatePlanner {
         override fun plan(projectDir: Path, options: UpdateAnalysisOptions): UpdatePlan = plan
-    }
-
-    private fun scriptedDecisions(decisions: List<UpdateDecision>): (Terminal, UpdateSuggestion, Int, Int) -> UpdateDecision {
-        val iterator = decisions.iterator()
-        return { _, _, _, _ ->
-            if (iterator.hasNext()) iterator.next() else UpdateDecision.SKIP
-        }
     }
 }

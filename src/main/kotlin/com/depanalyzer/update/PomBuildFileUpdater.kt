@@ -1,13 +1,16 @@
 package com.depanalyzer.update
 
+import com.depanalyzer.security.InputSafety
+import org.xml.sax.InputSource
 import java.io.File
 import java.io.StringReader
 import javax.xml.XMLConstants
 import javax.xml.parsers.DocumentBuilderFactory
-import org.xml.sax.InputSource
 
 class PomBuildFileUpdater : BuildFileUpdater {
     override fun applyUpdate(buildFile: File, suggestion: UpdateSuggestion): Boolean {
+        if (!InputSafety.isSafeVersion(suggestion.newVersion)) return false
+
         return when (suggestion.targetType) {
             UpdateTargetType.DIRECT -> applyDirectUpdate(buildFile, suggestion)
             UpdateTargetType.TRANSITIVE_OVERRIDE -> applyTransitiveOverride(buildFile, suggestion)

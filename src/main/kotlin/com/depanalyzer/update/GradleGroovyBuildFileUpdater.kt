@@ -1,9 +1,12 @@
 package com.depanalyzer.update
 
+import com.depanalyzer.security.InputSafety
 import java.io.File
 
 class GradleGroovyBuildFileUpdater : BuildFileUpdater {
     override fun applyUpdate(buildFile: File, suggestion: UpdateSuggestion): Boolean {
+        if (!InputSafety.isSafeVersion(suggestion.newVersion)) return false
+
         return when (suggestion.targetType) {
             UpdateTargetType.DIRECT -> applyDirectUpdate(buildFile, suggestion)
             UpdateTargetType.TRANSITIVE_OVERRIDE -> applyTransitiveOverride(buildFile, suggestion)

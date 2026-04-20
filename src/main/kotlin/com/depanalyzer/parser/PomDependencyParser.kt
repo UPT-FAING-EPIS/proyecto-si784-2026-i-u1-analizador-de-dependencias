@@ -1,6 +1,7 @@
 package com.depanalyzer.parser
 
 import com.depanalyzer.repository.ProjectRepository
+import com.depanalyzer.security.InputSafety
 import org.apache.maven.model.Dependency
 import org.apache.maven.model.Model
 import org.apache.maven.model.Repository
@@ -9,7 +10,9 @@ import java.io.File
 import java.io.FileReader
 
 class PomDependencyParser(
-    private val envProvider: (String) -> String? = { System.getenv(it) }
+    private val envProvider: (String) -> String? = { System.getenv(it) },
+    private val trustedCredentialHosts: Set<String> =
+        InputSafety.parseTrustedCredentialHosts(envProvider(InputSafety.CREDENTIAL_HOST_ALLOWLIST_ENV))
 ) {
     fun parse(pomFile: File): List<ParsedDependency> {
         require(pomFile.exists() && pomFile.isFile) { "Invalid pom file path: ${pomFile.absolutePath}" }
@@ -71,12 +74,22 @@ class PomDependencyParser(
     private fun toProjectRepository(repo: Repository, properties: Map<String, String>): ProjectRepository? {
         val id = repo.id?.trim() ?: return null
         val url = repo.url?.trim()?.let { resolvePlaceholders(it, properties) } ?: return null
+        if (!InputSafety.isAllowedRepositoryUrl(url)) return null
 
         val releases = repo.releases?.isEnabled?.toString()?.equals("false", true)?.not() ?: true
         val snapshots = repo.snapshots?.isEnabled?.toString()?.equals("true", true) ?: false
 
-        val username = envProvider("MAVEN_REPO_${id.uppercase().replace("-", "_")}_USERNAME")
-        val password = envProvider("MAVEN_REPO_${id.uppercase().replace("-", "_")}_PASSWORD")
+        val allowCredentials = InputSafety.isTrustedCredentialDestination(url, trustedCredentialHosts)
+        val username = if (allowCredentials) {
+            envProvider("MAVEN_REPO_${id.uppercase().replace("-", "_")}_USERNAME")
+        } else {
+            null
+        }
+        val password = if (allowCredentials) {
+            envProvider("MAVEN_REPO_${id.uppercase().replace("-", "_")}_PASSWORD")
+        } else {
+            null
+        }
 
         return ProjectRepository(
             id = id,
@@ -91,6 +104,7 @@ class PomDependencyParser(
     private fun buildHierarchy(rootPom: File): List<Model> {
         val models = mutableListOf<Model>()
         var currentPom: File? = rootPom
+        val rootCanonicalPom = rootPom.canonicalFile
         var depth = 0
 
         while (currentPom != null && depth < 10) {
@@ -100,6 +114,10 @@ class PomDependencyParser(
             val parent = model.parent ?: break
             val relativePath = parent.relativePath?.trim().takeUnless { it.isNullOrBlank() } ?: "../pom.xml"
             val parentPom = File(currentPom.parentFile, relativePath).canonicalFile
+            if (!InputSafety.isWithinParentBoundary(rootCanonicalPom, parentPom)) {
+                break
+            }
+
             if (!parentPom.exists() || parentPom == currentPom.canonicalFile) {
                 break
             }

@@ -116,6 +116,35 @@ Get-Content .env | ForEach-Object {
 ./gradlew run
 ```
 
+## Seguridad de Credenciales de Repositorios
+
+Para evitar exfiltración accidental de credenciales al analizar proyectos no confiables, el analizador solo adjunta
+credenciales HTTP Basic a hosts explícitamente confiables.
+
+- Variable de entorno: `DEPANALYZER_TRUSTED_CREDENTIAL_HOSTS`
+- Formato: hosts separados por coma
+- Soporta:
+    - Host exacto: `nexus.example.com`
+    - Sufijo con subdominios: `.corp.example.com` (incluye `repo.corp.example.com` y `corp.example.com`)
+
+Si la variable no está configurada, el comportamiento por defecto es **fail-closed**: no se envían credenciales a ningún
+repositorio.
+
+Ejemplos:
+
+```bash
+# Linux/macOS
+export DEPANALYZER_TRUSTED_CREDENTIAL_HOSTS="nexus.example.com,.corp.example.com"
+
+# Windows PowerShell
+$env:DEPANALYZER_TRUSTED_CREDENTIAL_HOSTS="nexus.example.com,.corp.example.com"
+```
+
+Notas de seguridad:
+
+- Las credenciales solo se envían por `https`.
+- Repositorios en `http` nunca reciben credenciales.
+
 ## Configuración de NIST NVD (Opcional)
 
 Para enriquecer los análisis de vulnerabilidades de OSS Index con datos oficiales de NIST NVD y puntuaciones CVSS v3:

@@ -11,11 +11,19 @@ import com.github.ajalt.clikt.parameters.arguments.optional
 import com.github.ajalt.clikt.parameters.options.flag
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.types.path
+import com.github.ajalt.mordant.animation.animation
+import com.github.ajalt.mordant.input.KeyboardEvent
+import com.github.ajalt.mordant.input.MouseTracking
+import com.github.ajalt.mordant.input.enterRawMode
+import com.github.ajalt.mordant.input.isCtrlC
 import com.github.ajalt.mordant.rendering.AnsiLevel
-import com.github.ajalt.mordant.rendering.TextColors.red
+import com.github.ajalt.mordant.rendering.TextColors.*
 import com.github.ajalt.mordant.rendering.TextStyles.bold
+import com.github.ajalt.mordant.rendering.TextStyles.dim
 import com.github.ajalt.mordant.table.table
 import com.github.ajalt.mordant.terminal.Terminal
+import com.github.ajalt.mordant.widgets.SelectList
+import com.github.ajalt.mordant.widgets.Text
 import java.nio.file.Path
 
 class Update(
@@ -31,7 +39,7 @@ class Update(
             ProjectType.GRADLE_KOTLIN -> GradleKotlinBuildFileUpdater()
         }
     },
-    private val decisionProvider: (Terminal, UpdateSuggestion, Int, Int) -> UpdateDecision = ::defaultDecisionProvider
+    private val selectionProvider: (Terminal, List<UpdateSuggestion>) -> Set<UpdateSuggestion> = ::defaultSelectionProvider
 ) : CliktCommand(name = "update") {
     override fun help(context: Context): String = "Actualiza dependencias con confirmación interactiva"
 
@@ -115,54 +123,34 @@ class Update(
         terminal.println(bold("Actualizaciones sugeridas para ${plan.buildFile.name}"))
         terminal.println(bold("Formato: dependencia | actual -> nueva | razón"))
 
+        val selectedSuggestions = selectionProvider(terminal, scopedSuggestions)
         val results = mutableListOf<UpdateResult>()
-        var applyAll = false
-        var cancelled = false
-        var backupCreated = false
 
-        for ((index, suggestion) in scopedSuggestions.withIndex()) {
-            if (cancelled) {
-                results.add(UpdateResult(suggestion, applied = false, note = "cancelada"))
-                continue
+        if (selectedSuggestions.isEmpty()) {
+            scopedSuggestions.forEach { suggestion ->
+                results.add(UpdateResult(suggestion, applied = false, note = "no seleccionada"))
             }
+            renderSummary(terminal, results, dryRun)
+            return results
+        }
 
-            val decision = if (applyAll) {
-                UpdateDecision.APPLY
+        if (!dryRun) {
+            val backup = BuildFileBackup.ensureBackup(plan.buildFile)
+            terminal.println("Backup creado: ${backup.name}")
+        }
+
+        for (suggestion in scopedSuggestions) {
+            if (suggestion in selectedSuggestions) {
+                if (dryRun) {
+                    results.add(UpdateResult(suggestion, applied = true, note = "dry-run: se aplicaría"))
+                    continue
+                }
+
+                val applied = updater.applyUpdate(plan.buildFile, suggestion)
+                val note = if (applied) "aplicada" else "sin coincidencia editable"
+                results.add(UpdateResult(suggestion, applied, note))
             } else {
-                decisionProvider(terminal, suggestion, index, scopedSuggestions.size)
-            }
-
-            when (decision) {
-                UpdateDecision.SKIP -> {
-                    results.add(UpdateResult(suggestion, applied = false, note = "omitida"))
-                }
-
-                UpdateDecision.CANCEL -> {
-                    cancelled = true
-                    results.add(UpdateResult(suggestion, applied = false, note = "cancelada"))
-                }
-
-                UpdateDecision.APPLY_ALL,
-                UpdateDecision.APPLY -> {
-                    if (decision == UpdateDecision.APPLY_ALL) {
-                        applyAll = true
-                    }
-
-                    if (dryRun) {
-                        results.add(UpdateResult(suggestion, applied = true, note = "dry-run: se aplicaría"))
-                        continue
-                    }
-
-                    if (!backupCreated) {
-                        val backup = BuildFileBackup.ensureBackup(plan.buildFile)
-                        terminal.println("Backup creado: ${backup.name}")
-                        backupCreated = true
-                    }
-
-                    val applied = updater.applyUpdate(plan.buildFile, suggestion)
-                    val note = if (applied) "aplicada" else "sin coincidencia editable"
-                    results.add(UpdateResult(suggestion, applied, note))
-                }
+                results.add(UpdateResult(suggestion, applied = false, note = "no seleccionada"))
             }
         }
 
@@ -243,35 +231,156 @@ class Update(
     }
 
     companion object {
-        private fun defaultDecisionProvider(
-            terminal: Terminal,
-            suggestion: UpdateSuggestion,
-            index: Int,
-            total: Int
-        ): UpdateDecision {
-            val label = formatSelectionLabel(suggestion)
-            terminal.println()
-            terminal.println(
-                bold(
-                    "[${
-                        index + 1
-                    }/$total] $label"
-                )
-            )
-            terminal.println("¿Aplicar actualización? [s]í / [n]o / [a]plicar todo / [c]ancelar")
+        private data class SelectionState(
+            val items: List<SelectList.Entry>,
+            val filterText: String = "",
+            val isFiltering: Boolean = false,
+            val cursor: Int = 0,
+        ) {
+            val filteredIndexes: List<Int>
+                get() {
+                    if (filterText.isBlank()) {
+                        return items.indices.toList()
+                    }
 
-            while (true) {
-                val input = readlnOrNull()?.trim()?.lowercase().orEmpty()
-
-                when (input) {
-                    "s", "si", "sí", "y", "yes" -> return UpdateDecision.APPLY
-                    "n", "no" -> return UpdateDecision.SKIP
-                    "a", "all" -> return UpdateDecision.APPLY_ALL
-                    "c", "cancel", "cancelar", "q", "quit" -> return UpdateDecision.CANCEL
+                    return items.mapIndexedNotNull { index, entry ->
+                        if (entry.title.contains(filterText, ignoreCase = true)) index else null
+                    }
                 }
+        }
 
-                terminal.println(red("Opción inválida. Usa s, n, a o c."))
+        private fun defaultSelectionProvider(
+            terminal: Terminal,
+            suggestions: List<UpdateSuggestion>
+        ): Set<UpdateSuggestion> {
+            val labels = suggestions.map(::formatSelectionLabel)
+            val initialState = SelectionState(items = labels.map { SelectList.Entry(it) })
+            var state = initialState
+
+            val animation = terminal.animation<SelectionState> { current ->
+                val filteredItems = current.filteredIndexes.map { current.items[it] }
+                val cursorIndex = if (filteredItems.isEmpty()) -1 else current.cursor
+
+                SelectList(
+                    entries = filteredItems,
+                    title = Text(
+                        if (current.isFiltering) {
+                            "Buscar: ${current.filterText}"
+                        } else {
+                            "Selecciona dependencias para actualizar"
+                        }
+                    ),
+                    cursorIndex = cursorIndex,
+                    styleOnHover = true,
+                    cursorMarker = ">",
+                    selectedMarker = "[x]",
+                    unselectedMarker = "[ ]",
+                    selectedStyle = green + bold,
+                    cursorStyle = cyan + bold,
+                    unselectedTitleStyle = gray,
+                    unselectedMarkerStyle = gray,
+                    captionBottom = Text(
+                        dim("space/x marcar • a todo • A limpiar • j/k o ↑/↓ mover • / o f buscar • enter confirmar • esc/q cancelar")
+                    )
+                )
             }
+            animation.update(state)
+
+            terminal.enterRawMode(MouseTracking.Off).use { rawMode ->
+                while (true) {
+                    val event = rawMode.readEvent()
+                    if (event !is KeyboardEvent) {
+                        continue
+                    }
+
+                    if (event.isCtrlC || (!state.isFiltering && keyIs(event, "q"))) {
+                        animation.clear()
+                        return emptySet()
+                    }
+
+                    if (state.isFiltering && keyIs(event, "escape")) {
+                        state = state.copy(filterText = "", isFiltering = false, cursor = 0)
+                        animation.update(state.ensureCursorBounds())
+                        continue
+                    }
+
+                    if (!state.isFiltering && keyIs(event, "escape")) {
+                        animation.clear()
+                        return emptySet()
+                    }
+
+                    if (!event.ctrl && !event.alt && state.isFiltering) {
+                        state = when {
+                            keyIs(event, "enter") -> state.copy(isFiltering = false)
+                            keyIs(event, "backspace") -> state.copy(
+                                filterText = state.filterText.dropLast(1),
+                                cursor = 0
+                            )
+
+                            event.key.length == 1 -> state.copy(filterText = state.filterText + event.key, cursor = 0)
+                            keyIs(event, "arrowup") || keyIs(event, "k") -> state.moveCursor(-1)
+                            keyIs(event, "arrowdown") || keyIs(event, "j") -> state.moveCursor(1)
+                            else -> state
+                        }
+                        animation.update(state.ensureCursorBounds())
+                        state = state.ensureCursorBounds()
+                        continue
+                    }
+
+                    state = when {
+                        isFilterTrigger(event) -> state.copy(isFiltering = true, filterText = "", cursor = 0)
+                        !state.isFiltering && keyIs(event, "a") && event.shift -> state.setAllSelected(false)
+                        !state.isFiltering && keyIs(event, "a") -> state.setAllSelected(true)
+                        keyIs(event, "arrowup") || keyIs(event, "k") -> state.moveCursor(-1)
+                        keyIs(event, "arrowdown") || keyIs(event, "j") -> state.moveCursor(1)
+                        keyIs(event, " ") || keyIs(event, "space") || keyIs(event, "spacebar") || keyIs(
+                            event,
+                            "x"
+                        ) -> state.toggleCurrent()
+
+                        keyIs(event, "enter") -> {
+                            val selectedLabels = state.items.filter { it.selected }.map { it.title }.toSet()
+                            animation.clear()
+                            return suggestions.filterIndexed { index, _ -> labels[index] in selectedLabels }.toSet()
+                        }
+
+                        else -> state
+                    }
+
+                    state = state.ensureCursorBounds()
+                    animation.update(state)
+                }
+            }
+        }
+
+        private fun SelectionState.moveCursor(delta: Int): SelectionState {
+            if (filteredIndexes.isEmpty()) return copy(cursor = 0)
+            val newCursor = (cursor + delta).coerceIn(0, filteredIndexes.lastIndex)
+            return copy(cursor = newCursor)
+        }
+
+        private fun SelectionState.toggleCurrent(): SelectionState {
+            val indexes = filteredIndexes
+            if (indexes.isEmpty()) return this
+
+            val itemIndex = indexes[cursor]
+            val updatedItems = items.toMutableList()
+            val current = updatedItems[itemIndex]
+            updatedItems[itemIndex] = current.copy(selected = !current.selected)
+            return copy(items = updatedItems)
+        }
+
+        private fun SelectionState.ensureCursorBounds(): SelectionState {
+            val indexes = filteredIndexes
+            if (indexes.isEmpty()) {
+                return copy(cursor = 0)
+            }
+
+            return copy(cursor = cursor.coerceIn(0, indexes.lastIndex))
+        }
+
+        private fun SelectionState.setAllSelected(selected: Boolean): SelectionState {
+            return copy(items = items.map { it.copy(selected = selected) })
         }
 
         private fun formatSelectionLabel(suggestion: UpdateSuggestion): String {
@@ -279,12 +388,16 @@ class Update(
                 "${suggestion.coordinate} | ${suggestion.currentVersion} -> ${suggestion.newVersion} | ${suggestion.reason.label()} | ${suggestion.targetType.label()}"
             return suggestion.viaDirectCoordinate?.let { "$base | via $it" } ?: base
         }
-    }
-}
 
-enum class UpdateDecision {
-    APPLY,
-    SKIP,
-    APPLY_ALL,
-    CANCEL
+        private fun isFilterTrigger(event: KeyboardEvent): Boolean {
+            if (event.ctrl || event.alt) return false
+            val key = event.key.lowercase()
+            return key in setOf("/", "slash", "?", "numpaddivide", "divide", "f", "&") ||
+                    (event.shift && key in setOf("7", "digit7"))
+        }
+
+        private fun keyIs(event: KeyboardEvent, expected: String): Boolean {
+            return event.key.equals(expected, ignoreCase = true)
+        }
+    }
 }

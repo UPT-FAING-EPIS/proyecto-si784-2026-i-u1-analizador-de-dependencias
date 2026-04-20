@@ -3,10 +3,8 @@ package com.depanalyzer.parser
 import io.mockk.every
 import io.mockk.mockk
 import java.io.File
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertNotNull
-import kotlin.test.assertTrue
+import java.nio.file.Files
+import kotlin.test.*
 
 class PomDependencyParserTest {
     private val parser = PomDependencyParser()
@@ -118,13 +116,115 @@ class PomDependencyParserTest {
         every { mockEnv("MAVEN_REPO_NEXUS_AUTH_USERNAME") } returns "admin"
         every { mockEnv("MAVEN_REPO_NEXUS_AUTH_PASSWORD") } returns "secret"
 
-        val authParser = PomDependencyParser(envProvider = mockEnv)
+        val authParser = PomDependencyParser(
+            envProvider = mockEnv,
+            trustedCredentialHosts = setOf("nexus.example.com")
+        )
         val repos = authParser.repositories(resourcePom("poms/with-auth/pom.xml"))
 
         val nexusAuth = repos.find { it.id == "nexus-auth" }
         assertNotNull(nexusAuth)
         assertEquals("admin", nexusAuth.username)
         assertEquals("secret", nexusAuth.password)
+    }
+
+    @Test
+    fun `does not read env credentials for untrusted repository host`() {
+        var envLookups = 0
+        val authParser = PomDependencyParser(
+            envProvider = {
+                envLookups++
+                "secret"
+            },
+            trustedCredentialHosts = emptySet()
+        )
+
+        val repos = authParser.repositories(resourcePom("poms/with-auth/pom.xml"))
+        val nexusAuth = repos.find { it.id == "nexus-auth" }
+
+        assertNotNull(nexusAuth)
+        assertNull(nexusAuth.username)
+        assertNull(nexusAuth.password)
+        assertEquals(0, envLookups)
+    }
+
+    @Test
+    fun `filters repository urls that target localhost and falls back to maven central`() {
+        val dir = Files.createTempDirectory("pom-repo-ssrf")
+        val pom = dir.resolve("pom.xml").toFile()
+        pom.writeText(
+            """
+            <project xmlns="http://maven.apache.org/POM/4.0.0">
+                <modelVersion>4.0.0</modelVersion>
+                <groupId>com.test</groupId>
+                <artifactId>demo</artifactId>
+                <version>1.0.0</version>
+                <repositories>
+                    <repository>
+                        <id>unsafe</id>
+                        <url>http://localhost:8081/repository/maven-public/</url>
+                    </repository>
+                </repositories>
+            </project>
+            """.trimIndent()
+        )
+
+        val repos = parser.repositories(pom)
+
+        assertEquals(1, repos.size)
+        assertEquals("central", repos[0].id)
+    }
+
+    @Test
+    fun `blocks parent pom traversal outside project parent tree`() {
+        val root = Files.createTempDirectory("pom-parent-traversal")
+        val projectDir = Files.createDirectories(root.resolve("workspace/project"))
+        val childDir = Files.createDirectories(projectDir.resolve("child"))
+        val outsideDir = Files.createDirectories(root.resolve("workspace/outside"))
+
+        outsideDir.resolve("pom.xml").toFile().writeText(
+            """
+            <project xmlns="http://maven.apache.org/POM/4.0.0">
+                <modelVersion>4.0.0</modelVersion>
+                <groupId>com.example</groupId>
+                <artifactId>outside-parent</artifactId>
+                <version>1.0.0</version>
+                <properties>
+                    <shared.version>9.9.9</shared.version>
+                </properties>
+            </project>
+            """.trimIndent()
+        )
+
+        val childPom = childDir.resolve("pom.xml").toFile()
+        childPom.writeText(
+            """
+            <project xmlns="http://maven.apache.org/POM/4.0.0">
+                <modelVersion>4.0.0</modelVersion>
+                <parent>
+                    <groupId>com.example</groupId>
+                    <artifactId>outside-parent</artifactId>
+                    <version>1.0.0</version>
+                    <relativePath>../../outside/pom.xml</relativePath>
+                </parent>
+                <groupId>com.example</groupId>
+                <artifactId>child</artifactId>
+                <version>1.0.0</version>
+                <dependencies>
+                    <dependency>
+                        <groupId>junit</groupId>
+                        <artifactId>junit</artifactId>
+                        <version>${'$'}{shared.version}</version>
+                    </dependency>
+                </dependencies>
+            </project>
+            """.trimIndent()
+        )
+
+        val deps = parser.parse(childPom)
+        val junit = deps.single()
+
+        assertEquals("${'$'}{shared.version}", junit.version)
     }
 
     private fun resourcePom(path: String): File {

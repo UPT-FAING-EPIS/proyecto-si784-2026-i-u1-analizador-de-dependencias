@@ -1,17 +1,21 @@
 package com.depanalyzer.parser
 
 import com.depanalyzer.repository.ProjectRepository
+import com.depanalyzer.security.InputSafety
 import java.io.File
 
 class GradleRepositoryParser(
-    private val envProvider: (String) -> String? = { System.getenv(it) }
+    private val envProvider: (String) -> String? = { System.getenv(it) },
+    private val trustedCredentialHosts: Set<String> =
+        InputSafety.parseTrustedCredentialHosts(envProvider(InputSafety.CREDENTIAL_HOST_ALLOWLIST_ENV))
 ) {
     fun parse(buildFile: File): List<ProjectRepository> {
         val content = buildFile.readText()
-        val repositoriesBody = extractBlockBody(content, "repositories") ?: return listOf(ProjectRepository.MAVEN_CENTRAL)
-        
+        val repositoriesBody =
+            extractBlockBody(content, "repositories") ?: return listOf(ProjectRepository.MAVEN_CENTRAL)
+
         val repos = mutableListOf<ProjectRepository>()
-        
+
         // Standard repositories
         if (repositoriesBody.contains("mavenCentral()")) {
             repos.add(ProjectRepository.MAVEN_CENTRAL)
@@ -24,22 +28,29 @@ class GradleRepositoryParser(
         }
         if (repositoriesBody.contains("mavenLocal()")) {
             // mavenLocal is usually ~/.m2/repository, we can use a placeholder or local file URL
-            repos.add(ProjectRepository(id = "mavenLocal", url = "file://${System.getProperty("user.home")}/.m2/repository"))
+            repos.add(
+                ProjectRepository(
+                    id = "mavenLocal",
+                    url = "file://${System.getProperty("user.home")}/.m2/repository"
+                )
+            )
         }
 
         // Custom maven repositories
         val mavenBlocks = extractMavenBlocks(repositoriesBody)
         mavenBlocks.forEach { block ->
             val url = extractUrl(block)
-            if (url != null) {
+            if (url != null && InputSafety.isAllowedRepositoryUrl(url)) {
                 val id = url.substringAfterLast("/").takeIf { it.isNotBlank() } ?: "maven"
-                val (username, password) = extractCredentials(block)
-                repos.add(ProjectRepository(
-                    id = id,
-                    url = url,
-                    username = username,
-                    password = password
-                ))
+                val (username, password) = extractCredentials(block, url)
+                repos.add(
+                    ProjectRepository(
+                        id = id,
+                        url = url,
+                        username = username,
+                        password = password
+                    )
+                )
             }
         }
 
@@ -74,7 +85,7 @@ class GradleRepositoryParser(
         val blocks = mutableListOf<String>()
         val startRegex = Regex("""\bmaven\s*\{""")
         var currentMatch = startRegex.find(content)
-        
+
         while (currentMatch != null) {
             val start = currentMatch.range.first
             val openBrace = content.indexOf('{', start)
@@ -105,26 +116,32 @@ class GradleRepositoryParser(
         return urlRegex.find(block)?.groupValues?.get(1)
     }
 
-    private fun extractCredentials(block: String): Pair<String?, String?> {
+    private fun extractCredentials(block: String, repositoryUrl: String): Pair<String?, String?> {
+        if (!InputSafety.isTrustedCredentialDestination(repositoryUrl, trustedCredentialHosts)) {
+            return null to null
+        }
+
         val credsBody = extractBlockBody(block, "credentials") ?: return null to null
-        
-        val userRegex = Regex("""username\s*(?:=|\s*)\s*(?:System\.getenv\s*\(\s*['"]([^'"]+)['"]\s*\)|['"]([^'"]+)['"])""")
-        val passRegex = Regex("""password\s*(?:=|\s*)\s*(?:System\.getenv\s*\(\s*['"]([^'"]+)['"]\s*\)|['"]([^'"]+)['"])""")
-        
+
+        val userRegex =
+            Regex("""username\s*(?:=|\s*)\s*(?:System\.getenv\s*\(\s*['"]([^'"]+)['"]\s*\)|['"]([^'"]+)['"])""")
+        val passRegex =
+            Regex("""password\s*(?:=|\s*)\s*(?:System\.getenv\s*\(\s*['"]([^'"]+)['"]\s*\)|['"]([^'"]+)['"])""")
+
         val userMatch = userRegex.find(credsBody)
         val username = when {
             userMatch?.groupValues?.get(1)?.isNotBlank() == true -> envProvider(userMatch.groupValues[1])
             userMatch?.groupValues?.get(2)?.isNotBlank() == true -> userMatch.groupValues[2]
             else -> null
         }
-        
+
         val passMatch = passRegex.find(credsBody)
         val password = when {
             passMatch?.groupValues?.get(1)?.isNotBlank() == true -> envProvider(passMatch.groupValues[1])
             passMatch?.groupValues?.get(2)?.isNotBlank() == true -> passMatch.groupValues[2]
             else -> null
         }
-        
+
         return username to password
     }
 }

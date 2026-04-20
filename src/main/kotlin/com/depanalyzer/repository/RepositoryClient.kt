@@ -1,5 +1,6 @@
 package com.depanalyzer.repository
 
+import com.depanalyzer.security.InputSafety
 import okhttp3.Credentials
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -11,6 +12,8 @@ import java.util.concurrent.TimeUnit
 class RepositoryClient(
     connectTimeoutSeconds: Long = 10,
     readTimeoutSeconds: Long = 10,
+    private val trustedCredentialHosts: Set<String> =
+        InputSafety.parseTrustedCredentialHosts(System.getenv(InputSafety.CREDENTIAL_HOST_ALLOWLIST_ENV)),
     private val client: OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(connectTimeoutSeconds, TimeUnit.SECONDS)
         .readTimeout(readTimeoutSeconds, TimeUnit.SECONDS)
@@ -22,15 +25,27 @@ class RepositoryClient(
 
     fun getLatestVersion(repository: ProjectRepository, groupId: String, artifactId: String): String? {
         val metadata = fetchMetadata(repository, groupId, artifactId) ?: return null
-        return metadata.versioning?.release ?: metadata.versioning?.latest
-        ?: metadata.versioning?.versions?.versionList?.lastOrNull()
+        val candidates = buildList {
+            metadata.versioning?.release?.let(::add)
+            metadata.versioning?.latest?.let(::add)
+            metadata.versioning?.versions?.versionList.orEmpty().asReversed().forEach(::add)
+        }
+
+        return candidates
+            .map(String::trim)
+            .firstOrNull(InputSafety::isSafeVersion)
     }
 
     private fun fetchMetadata(repository: ProjectRepository, groupId: String, artifactId: String): MavenMetadata? {
-        val url = buildMetadataUrl(repository.url, groupId, artifactId)
-        val requestBuilder = Request.Builder().url(url)
+        if (!InputSafety.isAllowedRepositoryUrl(repository.url)) return null
 
-        if (repository.username != null && repository.password != null) {
+        val url = buildMetadataUrl(repository.url, groupId, artifactId)
+        if (!InputSafety.isAllowedRepositoryUrl(url)) return null
+
+        val requestBuilder = runCatching { Request.Builder().url(url) }.getOrNull() ?: return null
+
+        val allowCredentials = InputSafety.isTrustedCredentialDestination(url, trustedCredentialHosts)
+        if (allowCredentials && repository.username != null && repository.password != null) {
             requestBuilder.header("Authorization", Credentials.basic(repository.username, repository.password))
         }
 

@@ -2,12 +2,15 @@ package com.depanalyzer.update
 
 import com.depanalyzer.parser.LibraryInfo
 import com.depanalyzer.parser.VersionCatalogParser
+import com.depanalyzer.security.InputSafety
 import java.io.File
 
 class GradleKotlinBuildFileUpdater(
     private val catalogParser: VersionCatalogParser = VersionCatalogParser()
 ) : BuildFileUpdater {
     override fun applyUpdate(buildFile: File, suggestion: UpdateSuggestion): Boolean {
+        if (!InputSafety.isSafeVersion(suggestion.newVersion)) return false
+
         if (suggestion.targetType == UpdateTargetType.TRANSITIVE_OVERRIDE) {
             return applyTransitiveOverride(buildFile, suggestion)
         }

@@ -389,6 +389,72 @@ class BuildFileUpdaterTest {
         assertTrue(text.contains("org.apache.logging.log4j:log4j-core:2.22.1"))
     }
 
+    @Test
+    fun `pom updater rejects unsafe target version`() {
+        val dir = Files.createTempDirectory("pom-updater-unsafe-version")
+        val pom = dir.resolve("pom.xml").toFile()
+        val original = """
+            <project>
+              <dependencies>
+                <dependency>
+                  <groupId>org.slf4j</groupId>
+                  <artifactId>slf4j-api</artifactId>
+                  <version>1.7.30</version>
+                </dependency>
+              </dependencies>
+            </project>
+        """.trimIndent()
+        pom.writeText(original)
+
+        val updated = PomBuildFileUpdater().applyUpdate(
+            pom,
+            UpdateSuggestion("org.slf4j", "slf4j-api", "1.7.30", "1.0'; system('rm -rf /')", UpdateReason.CVE)
+        )
+
+        assertFalse(updated)
+        assertEquals(original, pom.readText())
+    }
+
+    @Test
+    fun `gradle groovy updater rejects unsafe target version`() {
+        val dir = Files.createTempDirectory("gradle-groovy-updater-unsafe-version")
+        val build = dir.resolve("build.gradle").toFile()
+        val original = """
+            dependencies {
+                implementation 'org.slf4j:slf4j-api:1.7.30'
+            }
+        """.trimIndent()
+        build.writeText(original)
+
+        val updated = GradleGroovyBuildFileUpdater().applyUpdate(
+            build,
+            UpdateSuggestion("org.slf4j", "slf4j-api", "1.7.30", "1.0'; system('rm -rf /')", UpdateReason.CVE)
+        )
+
+        assertFalse(updated)
+        assertEquals(original, build.readText())
+    }
+
+    @Test
+    fun `gradle kotlin updater rejects unsafe target version`() {
+        val dir = Files.createTempDirectory("gradle-kotlin-updater-unsafe-version")
+        val build = dir.resolve("build.gradle.kts").toFile()
+        val original = """
+            dependencies {
+                implementation("org.slf4j:slf4j-api:1.7.30")
+            }
+        """.trimIndent()
+        build.writeText(original)
+
+        val updated = GradleKotlinBuildFileUpdater().applyUpdate(
+            build,
+            UpdateSuggestion("org.slf4j", "slf4j-api", "1.7.30", "1.0'; system('rm -rf /')", UpdateReason.CVE)
+        )
+
+        assertFalse(updated)
+        assertEquals(original, build.readText())
+    }
+
     private fun copyPomFixture(resourcePath: String): File {
         val dir = Files.createTempDirectory("pom-updater-fixture")
         val pom = dir.resolve("pom.xml")
