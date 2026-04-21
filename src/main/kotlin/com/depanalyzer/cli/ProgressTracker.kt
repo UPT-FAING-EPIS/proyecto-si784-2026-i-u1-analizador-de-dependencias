@@ -4,10 +4,27 @@ object ProgressTracker {
 
     private var progressSteps: List<String> = emptyList()
     private var currentStep: Int = 0
+    private var muted: Boolean = false
+
+    @Volatile
+    private var listener: ((String) -> Unit)? = null
+
+    fun setMuted(value: Boolean) {
+        muted = value
+    }
+
+    fun setListener(value: ((String) -> Unit)?) {
+        listener = value
+    }
+
+    private fun emit(message: String) {
+        listener?.invoke(message)
+    }
 
     fun startProgress(steps: List<String>) {
         progressSteps = steps
         currentStep = 0
+        emit("Inicializando")
         renderProgress()
     }
 
@@ -21,12 +38,14 @@ object ProgressTracker {
             else -> progressSteps.size
         }
 
+        emit(stepName)
         renderProgress(stepName)
     }
 
     fun completeProgress() {
         if (progressSteps.isEmpty()) return
         currentStep = progressSteps.size
+        emit("Completado")
         renderProgress("Completado")
         progressSteps = emptyList()
         currentStep = 0
@@ -41,7 +60,10 @@ object ProgressTracker {
         val bar = "#".repeat(filled) + "-".repeat(width - filled)
         val label = currentLabel ?: "Inicializando"
 
-        System.err.println("[$bar] $currentStep/$total - $label")
+        emit("$label ($currentStep/$total)")
+        if (!muted) {
+            System.err.println("[$bar] $currentStep/$total - $label")
+        }
     }
 
     fun formatDuration(milliseconds: Long): String {
@@ -55,7 +77,10 @@ object ProgressTracker {
     }
 
     fun logStep(message: String) {
-        System.err.println(message)
+        emit(message)
+        if (!muted) {
+            System.err.println(message)
+        }
     }
 
     fun logSuccess(message: String, elapsedMs: Long? = null) {
@@ -64,38 +89,64 @@ object ProgressTracker {
         } else {
             message
         }
-        System.err.println("✓ $msg")
+        emit(msg)
+        if (!muted) {
+            System.err.println("✓ $msg")
+        }
     }
 
     fun logWarning(message: String) {
-        System.err.println("⚠️  $message")
+        emit(message)
+        if (!muted) {
+            System.err.println("⚠️  $message")
+        }
     }
 
     fun logSearching(message: String) {
-        System.err.println("🔍 $message")
+        emit(message)
+        if (!muted) {
+            System.err.println("🔍 $message")
+        }
     }
 
     fun logProcessing(message: String) {
-        System.err.println("📦 $message")
+        emit(message)
+        if (!muted) {
+            System.err.println("📦 $message")
+        }
     }
 
     fun logDetected(message: String) {
-        System.err.println("📁 $message")
+        emit(message)
+        if (!muted) {
+            System.err.println("📁 $message")
+        }
     }
 
     fun logBuilding(message: String) {
-        System.err.println("🌳 $message")
+        emit(message)
+        if (!muted) {
+            System.err.println("🌳 $message")
+        }
     }
 
     fun logSecurity(message: String) {
-        System.err.println("🛡️  $message")
+        emit(message)
+        if (!muted) {
+            System.err.println("🛡️  $message")
+        }
     }
 
     fun logStart(message: String) {
-        System.err.println("🚀 $message")
+        emit(message)
+        if (!muted) {
+            System.err.println("🚀 $message")
+        }
     }
 
     fun logSeparator() {
-        System.err.println()
+        if (!muted) {
+            System.err.println()
+        }
     }
 }

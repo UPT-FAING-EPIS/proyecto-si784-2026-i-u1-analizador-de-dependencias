@@ -27,7 +27,8 @@ class ProjectAnalyzer(
         treeMaxDepth: Int? = null,
         treeExpandMode: TreeExpandMode = TreeExpandMode.ALL,
         timeoutSeconds: Long = 1800L,
-        useNvd: Boolean = false
+        useNvd: Boolean = false,
+        onPartialReport: ((DependencyReport) -> Unit)? = null
     ): DependencyReport {
         ProgressTracker.advanceProgress("Detección")
         val type = projectDetector.detect(projectDir)
@@ -106,8 +107,24 @@ class ProjectAnalyzer(
         val outdated = mutableListOf<OutdatedDependency>()
         val directDependencies = mutableListOf<ParsedDependency>()
 
+        val initialTree = buildDependencyTree(
+            vulnerabilityMap = emptyMap(),
+            outdatedMap = emptyList(),
+            maxDepth = treeMaxDepth,
+            expandMode = treeExpandMode,
+            rootNodes = rootNodes
+        )
+        emitPartial(
+            onPartialReport,
+            DependencyReport(
+                projectName = projectDir.name,
+                dependencyTree = initialTree
+            )
+        )
+
         ProgressTracker.advanceProgress("Consulta de versiones")
-        dependencies.distinctBy { "${it.groupId}:${it.artifactId}" }.forEach { dep ->
+        val distinctDependencies = dependencies.distinctBy { "${it.groupId}:${it.artifactId}" }
+        distinctDependencies.forEachIndexed { index, dep ->
             val currentVersion = dep.version
             if (currentVersion != null && !isVariable(currentVersion)) {
                 directDependencies.add(dep)
@@ -120,16 +137,48 @@ class ProjectAnalyzer(
             } else {
                 upToDate.add(DependencyInfo(dep.groupId, dep.artifactId, currentVersion ?: "unknown"))
             }
+
+            val shouldEmitProgressiveSnapshot = onPartialReport != null &&
+                    ((index + 1) % 4 == 0 || index == distinctDependencies.lastIndex)
+            if (shouldEmitProgressiveSnapshot) {
+                val progressiveTree = buildDependencyTree(
+                    vulnerabilityMap = emptyMap(),
+                    outdatedMap = outdated,
+                    maxDepth = treeMaxDepth,
+                    expandMode = treeExpandMode,
+                    rootNodes = rootNodes
+                )
+                emitPartial(
+                    onPartialReport,
+                    DependencyReport(
+                        projectName = projectDir.name,
+                        upToDate = upToDate.toList(),
+                        outdated = outdated.toList(),
+                        dependencyTree = progressiveTree
+                    )
+                )
+            }
         }
 
-        ProgressTracker.advanceProgress("Árbol transitivo")
-        buildDependencyTree(
+        val versionedTree = buildDependencyTree(
             vulnerabilityMap = emptyMap(),
             outdatedMap = outdated,
             maxDepth = treeMaxDepth,
             expandMode = treeExpandMode,
             rootNodes = rootNodes
         )
+        emitPartial(
+            onPartialReport,
+            DependencyReport(
+                projectName = projectDir.name,
+                upToDate = upToDate,
+                outdated = outdated,
+                dependencyTree = versionedTree
+            )
+        )
+
+        ProgressTracker.advanceProgress("Árbol transitivo")
+        // El árbol parcial ya se generó y emitió en `versionedTree` para la UI.
 
         ProgressTracker.logSecurity("Consultando vulnerabilidades...")
         ProgressTracker.advanceProgress("CVEs")
@@ -165,6 +214,25 @@ class ProjectAnalyzer(
             vulnerabilityMap = vulnerabilityMap
         )
 
+        val cveTree = buildDependencyTree(
+            vulnerabilityMap = vulnerabilityMap,
+            outdatedMap = outdated,
+            maxDepth = treeMaxDepth,
+            expandMode = treeExpandMode,
+            rootNodes = rootNodes
+        )
+        emitPartial(
+            onPartialReport,
+            DependencyReport(
+                projectName = projectDir.name,
+                upToDate = upToDate,
+                outdated = outdated,
+                directVulnerable = directVulnerable,
+                transitiveVulnerable = transitiveVulnerable,
+                dependencyTree = cveTree
+            )
+        )
+
         val chains = if (includeChains) {
             buildVulnerabilityChains(dependencies, directDependencies, vulnerabilityMap)
         } else {
@@ -188,7 +256,17 @@ class ProjectAnalyzer(
             transitiveVulnerable = transitiveVulnerable,
             vulnerabilityChains = chains,
             dependencyTree = dependencyTree
-        )
+        ).also { finalReport ->
+            emitPartial(onPartialReport, finalReport)
+        }
+    }
+
+    private fun emitPartial(
+        onPartialReport: ((DependencyReport) -> Unit)?,
+        report: DependencyReport
+    ) {
+        if (onPartialReport == null) return
+        runCatching { onPartialReport(report) }
     }
 
     private fun buildDependencyTree(

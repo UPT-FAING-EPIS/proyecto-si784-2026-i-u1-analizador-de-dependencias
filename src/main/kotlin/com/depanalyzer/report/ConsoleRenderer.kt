@@ -10,10 +10,11 @@ import com.github.ajalt.mordant.terminal.Terminal
 class ConsoleRenderer(
     noColor: Boolean = false,
     private val useAscii: Boolean = false,
-    private val treeMaxDepth: Int? = null
+    private val treeMaxDepth: Int? = null,
+    ansiLevel: AnsiLevel? = null
 ) {
     private val terminal = Terminal(
-        ansiLevel = if (noColor) AnsiLevel.NONE else AnsiLevel.TRUECOLOR
+        ansiLevel = ansiLevel ?: if (noColor) AnsiLevel.NONE else AnsiLevel.TRUECOLOR
     )
 
     fun render(report: DependencyReport, showChains: Boolean = false, detailedChains: Boolean = false) {

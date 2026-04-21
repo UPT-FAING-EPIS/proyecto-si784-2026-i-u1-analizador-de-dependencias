@@ -306,6 +306,7 @@ El comando `analyze` acepta las siguientes opciones:
 | `-o`, `--output json`     | Exporta el reporte en JSON al archivo `dependency-report.json` en el directorio actual.                                                          |
 | `--fail-on-critical`      | Retorna exit code `1` si se detectan vulnerabilidades `CRITICAL` (útil para CI/CD).                                                              |
 | `--no-color`              | Desactiva los colores ANSI y estilos en la consola (útil para CI/CD).                                                                            |
+| `--tui`                   | Activa la interfaz interactiva TUI en pantalla completa (buffer alterno). Si no hay TTY o estás en CI/CD, hace fallback automático a CLI plano.  |
 | `-v`, `--verbose`         | Modo detallado - muestra la estructura completa del modelo con tabla detallada de vulnerabilidades.                                              |
 | `-h`, `--help`            | Muestra la ayuda del comando y las opciones disponibles.                                                                                         |
 
@@ -356,7 +357,25 @@ El comando `analyze` acepta las siguientes opciones:
 
 # Analizar un proyecto en otra ruta sin colores
 ./build/install/depanalyzer/bin/depanalyzer analyze C:/MisProyectos/JavaApp --no-color
+
+# Abrir interfaz interactiva desde analyze
+./build/install/depanalyzer/bin/depanalyzer analyze . --tui
+
+# Abrir interfaz interactiva con alias dedicado
+./build/install/depanalyzer/bin/depanalyzer tui .
 ```
+
+Notas de TUI:
+
+- En modo TUI el análisis se ejecuta **asíncronamente**: la interfaz abre de inmediato y muestra progreso mientras
+  escanea.
+- La TUI hace una **precarga rápida de dependencias directas** antes del escaneo dinámico para mostrar resultados desde
+  el arranque.
+- Para asegurar cobertura de dependencias transitivas, la TUI **fuerza análisis dinámico** (ignora `--offline`,
+  `--disable-maven`, `--disable-gradle`).
+- Atajos de actualización en TUI: `u` (agregar seleccionada a pendientes), `U` (agregar todas), `a` (aplicar
+  pendientes al build file), `x` (descartar pendientes), con confirmación `[s/n]`.
+- Si no hay TTY o se está en CI/CD, `--tui` hace fallback automático a salida CLI tradicional.
 
 ### Modo Verbose
 

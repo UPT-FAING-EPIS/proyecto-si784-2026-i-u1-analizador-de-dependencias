@@ -1,6 +1,7 @@
 package com.depanalyzer.cli
 
 import com.depanalyzer.report.*
+import com.depanalyzer.tui.TerminalCapabilitiesDetector
 import com.github.ajalt.clikt.core.ProgramResult
 import com.github.ajalt.clikt.core.parse
 import org.junit.jupiter.api.Test
@@ -87,5 +88,49 @@ class AnalyzeCommandTest {
         }
 
         assertEquals(1, result.statusCode)
+    }
+
+    @Test
+    fun `does not launch tui with analyze flag in non tty environments`() {
+        val detector = TerminalCapabilitiesDetector(
+            envProvider = { name -> if (name == "CI") "true" else null },
+            hasConsole = { false }
+        )
+
+        var tuiLaunched = false
+        val command = Analyze(
+            analyzeExecutor = { DependencyReport(projectName = "no-tty") },
+            terminalCapabilitiesDetector = detector,
+            tuiRunner = { _, _ ->
+                tuiLaunched = true
+                null
+            }
+        )
+
+        command.parse(listOf("--tui"))
+
+        assertEquals(false, tuiLaunched)
+    }
+
+    @Test
+    fun `launches tui when analyze flag is enabled in tty environments`() {
+        val detector = TerminalCapabilitiesDetector(
+            envProvider = { null },
+            hasConsole = { true }
+        )
+
+        var tuiLaunched = false
+        val command = Analyze(
+            analyzeExecutor = { DependencyReport(projectName = "tty") },
+            terminalCapabilitiesDetector = detector,
+            tuiRunner = { _, _ ->
+                tuiLaunched = true
+                null
+            }
+        )
+
+        command.parse(listOf("--tui"))
+
+        assertEquals(true, tuiLaunched)
     }
 }
