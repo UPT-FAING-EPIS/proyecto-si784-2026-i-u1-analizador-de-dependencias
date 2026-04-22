@@ -36,8 +36,8 @@ Versión *1.0*
 
 | CONTROL DE VERSIONES |           |              |               |            |                 |
 |:--------------------:|:----------|:-------------|:--------------|:-----------|:----------------|
-| Versión              | Hecha por | Revisada por | Aprobada por  | Fecha      | Motivo          |
-| 1.0                  | ACV, FYG  | ACV, FYG     | P. Cuadros Q. | 2026-04-22 | Versión inicial |
+|       Versión        | Hecha por | Revisada por | Aprobada por  | Fecha      | Motivo          |
+|         1.0          | ACV, FYG  | ACV, FYG     | P. Cuadros Q. | 2026-04-22 | Versión inicial |
 
 # ÍNDICE GENERAL
 
@@ -82,9 +82,14 @@ Versión *1.0*
 
 # 1. Introducción
 
-El presente Informe de Especificación de Requerimientos de Software (ERS) define, de manera verificable, las capacidades funcionales y no funcionales del sistema *JavaDepAnalyzer*. Este documento integra la visión académica del proyecto (FD02), la factibilidad evaluada (FD01) y el estado actual del código fuente para asegurar trazabilidad real entre requisitos, implementación y pruebas.
+El presente Informe de Especificación de Requerimientos de Software (ERS) define, de manera verificable, las capacidades
+funcionales y no funcionales del sistema *JavaDepAnalyzer*. Este documento integra la visión académica del proyecto (
+FD02), la factibilidad evaluada (FD01) y el estado actual del código fuente para asegurar trazabilidad real entre
+requisitos, implementación y pruebas.
 
-El sistema está orientado a analizar proyectos Java (Maven y Gradle), identificar dependencias desactualizadas, detectar vulnerabilidades CVE y brindar mecanismos de actualización guiada en terminal, con confirmación explícita y respaldo de archivos de build.
+El sistema está orientado a analizar proyectos Java (Maven y Gradle), identificar dependencias desactualizadas, detectar
+vulnerabilidades CVE y brindar mecanismos de actualización guiada en terminal, con confirmación explícita y respaldo de
+archivos de build.
 
 # 2. Generalidades de la Empresa
 
@@ -94,11 +99,13 @@ Universidad Privada de Tacna – Facultad de Ingeniería – Escuela Profesional
 
 ## 2.2 Visión
 
-Formar profesionales líderes, innovadores y comprometidos con la calidad, capaces de desarrollar soluciones tecnológicas aplicadas a problemas reales del entorno.
+Formar profesionales líderes, innovadores y comprometidos con la calidad, capaces de desarrollar soluciones tecnológicas
+aplicadas a problemas reales del entorno.
 
 ## 2.3 Misión
 
-Brindar formación integral en ingeniería de software, promoviendo investigación aplicada, ética profesional y producción de software de calidad con impacto académico y social.
+Brindar formación integral en ingeniería de software, promoviendo investigación aplicada, ética profesional y producción
+de software de calidad con impacto académico y social.
 
 ## 2.4 Organigrama
 
@@ -115,11 +122,14 @@ flowchart TD
 
 ## 3.1 Descripcion del problema
 
-En proyectos Java modernos, la gestión manual de dependencias presenta dos fallas frecuentes: (a) atraso de versiones con deuda técnica acumulada y (b) exposición a CVEs en dependencias directas y transitivas. La revisión manual no escala para árboles de dependencias medianos o grandes y dificulta tomar decisiones oportunas de mantenimiento.
+En proyectos Java modernos, la gestión manual de dependencias presenta dos fallas frecuentes: (a) atraso de versiones
+con deuda técnica acumulada y (b) exposición a CVEs en dependencias directas y transitivas. La revisión manual no escala
+para árboles de dependencias medianos o grandes y dificulta tomar decisiones oportunas de mantenimiento.
 
 ## 3.2 Objetivo de negocios
 
-Reducir tiempo de diagnóstico técnico y riesgo de seguridad en proyectos Java, proporcionando una herramienta CLI/TUI que entregue evidencia rápida, trazable y accionable para mantenimiento de dependencias.
+Reducir tiempo de diagnóstico técnico y riesgo de seguridad en proyectos Java, proporcionando una herramienta CLI/TUI
+que entregue evidencia rápida, trazable y accionable para mantenimiento de dependencias.
 
 ## 3.3 Objetivo de diseño
 
@@ -151,7 +161,8 @@ Diseñar una solución modular en Kotlin/JVM que:
 
 ## 3.5 Viabilidad del sistema
 
-Con base en FD01, la viabilidad del sistema es **alta** en dimensiones técnica, operativa, legal, social y ambiental. El costo operativo del entorno académico es bajo, y la pila tecnológica empleada es open-source, madura y documentada.
+Con base en FD01, la viabilidad del sistema es **alta** en dimensiones técnica, operativa, legal, social y ambiental. El
+costo operativo del entorno académico es bajo, y la pila tecnológica empleada es open-source, madura y documentada.
 
 ## 3.6 Informacion obtenida del levantamiento de informacion
 
@@ -200,70 +211,70 @@ flowchart LR
 
 ## 5.1 Cuadro de requerimientos funcionales inicial
 
-| ID | Requerimiento funcional inicial | Criterio general de aceptación |
-|---|---|---|
-| RFI-01 | Detectar tipo de proyecto Java | Identifica Maven, Gradle Groovy o Gradle Kotlin con archivos estándar |
-| RFI-02 | Extraer dependencias declaradas | Obtiene `groupId:artifactId:version` según parser correspondiente |
-| RFI-03 | Extraer repositorios del proyecto | Lee repos configurados para consultar versiones |
-| RFI-04 | Detectar desactualizaciones | Compara versión actual vs versión más reciente |
-| RFI-05 | Detectar CVEs | Consulta vulnerabilidades por dependencia |
-| RFI-06 | Clasificar vulnerabilidades | Separa vulnerabilidades directas y transitivas |
-| RFI-07 | Mostrar resultados por consola | Presenta resumen legible y árbol de problemas |
-| RFI-08 | Exportar JSON | Genera reporte estructurado para automatización |
+| ID     | Requerimiento funcional inicial   | Criterio general de aceptación                                        |
+|--------|-----------------------------------|-----------------------------------------------------------------------|
+| RFI-01 | Detectar tipo de proyecto Java    | Identifica Maven, Gradle Groovy o Gradle Kotlin con archivos estándar |
+| RFI-02 | Extraer dependencias declaradas   | Obtiene `groupId:artifactId:version` según parser correspondiente     |
+| RFI-03 | Extraer repositorios del proyecto | Lee repos configurados para consultar versiones                       |
+| RFI-04 | Detectar desactualizaciones       | Compara versión actual vs versión más reciente                        |
+| RFI-05 | Detectar CVEs                     | Consulta vulnerabilidades por dependencia                             |
+| RFI-06 | Clasificar vulnerabilidades       | Separa vulnerabilidades directas y transitivas                        |
+| RFI-07 | Mostrar resultados por consola    | Presenta resumen legible y árbol de problemas                         |
+| RFI-08 | Exportar JSON                     | Genera reporte estructurado para automatización                       |
 
 ## 5.2 Cuadro de requerimientos no funcionales
 
-| ID | Requerimiento no funcional | Métrica / Umbral | Evidencia esperada |
-|---|---|---|---|
-| RNF-01 | Portabilidad | Ejecución en Windows, Linux y macOS | Scripts generados por `installDist` y release nativo |
-| RNF-02 | Usabilidad técnica | Comandos con ayuda y flags consistentes | `--help`, documentación en README |
-| RNF-03 | Confiabilidad | Manejo controlado de errores de red/parseo | No abortar todo el flujo por fallo parcial de fuente externa |
-| RNF-04 | Seguridad de credenciales | Solo enviar credenciales a hosts confiables por allowlist | `DEPANALYZER_TRUSTED_CREDENTIAL_HOSTS` aplicado |
-| RNF-05 | Interoperabilidad | JSON válido y estable para consumo externo | `--output json` parseable por scripts |
-| RNF-06 | Rendimiento | Tiempo razonable en proyectos medianos (objetivo <= 30s local) | Corridas de referencia y pruebas internas |
-| RNF-07 | Mantenibilidad | Arquitectura modular y tipada | Separación de paquetes y cobertura de tests |
-| RNF-08 | Auditabilidad | Evidencia repetible en CI/CD | Workflows de test y release definidos |
+| ID     | Requerimiento no funcional | Métrica / Umbral                                               | Evidencia esperada                                           |
+|--------|----------------------------|----------------------------------------------------------------|--------------------------------------------------------------|
+| RNF-01 | Portabilidad               | Ejecución en Windows, Linux y macOS                            | Scripts generados por `installDist` y release nativo         |
+| RNF-02 | Usabilidad técnica         | Comandos con ayuda y flags consistentes                        | `--help`, documentación en README                            |
+| RNF-03 | Confiabilidad              | Manejo controlado de errores de red/parseo                     | No abortar todo el flujo por fallo parcial de fuente externa |
+| RNF-04 | Seguridad de credenciales  | Solo enviar credenciales a hosts confiables por allowlist      | `DEPANALYZER_TRUSTED_CREDENTIAL_HOSTS` aplicado              |
+| RNF-05 | Interoperabilidad          | JSON válido y estable para consumo externo                     | `--output json` parseable por scripts                        |
+| RNF-06 | Rendimiento                | Tiempo razonable en proyectos medianos (objetivo <= 30s local) | Corridas de referencia y pruebas internas                    |
+| RNF-07 | Mantenibilidad             | Arquitectura modular y tipada                                  | Separación de paquetes y cobertura de tests                  |
+| RNF-08 | Auditabilidad              | Evidencia repetible en CI/CD                                   | Workflows de test y release definidos                        |
 
 ## 5.3 Cuadro de requerimientos funcionales final
 
-| ID | Requerimiento funcional final | Prioridad | Trazabilidad técnica (módulo/código) |
-|---|---|---|---|
-| RF-01 | Detectar automáticamente tipo de proyecto (`pom.xml`, `build.gradle`, `build.gradle.kts`) | Alta | `parser/ProjectDetector.kt` |
-| RF-02 | Parsear dependencias Maven y Gradle | Alta | `parser/PomDependencyParser.kt`, `parser/GradleGroovyDependencyParser.kt`, `parser/GradleKotlinDependencyParser.kt` |
-| RF-03 | Parsear repositorios del proyecto | Alta | `parser/GradleRepositoryParser.kt`, `parser/PomDependencyParser.kt` |
-| RF-04 | Consultar versión más reciente por repositorio | Alta | `repository/RepositoryClient.kt`, `core/ProjectAnalyzer.kt` |
-| RF-05 | Detectar CVEs usando OSS Index | Alta | `repository/OssIndexClient.kt`, `core/ProjectAnalyzer.kt` |
-| RF-06 | Enriquecer CVEs con NVD (opcional) | Media | `repository/NvdClient.kt`, `repository/VulnerabilityMerger.kt`, flag `--use-nvd` |
-| RF-07 | Clasificar vulnerabilidades directas y transitivas | Alta | `core/ProjectAnalyzer.kt`, `report/DependencyReport.kt` |
-| RF-08 | Mostrar resultados en consola con árbol de dependencias | Alta | `report/ConsoleRenderer.kt`, `report/DependencyTreeBuilder.kt` |
-| RF-09 | Exportar resultados a JSON | Alta | `report/ReportGenerator.kt`, opción `--output json` |
-| RF-10 | Ofrecer interfaz TUI interactiva | Media | `tui/AnalyzeTuiApp.kt`, comando `tui` y flag `--tui` |
-| RF-11 | Ejecutar actualización guiada con selección interactiva | Alta | `cli/UpdateCommand.kt`, `update/UpdatePlanner.kt` |
-| RF-12 | Respaldar build file antes de aplicar cambios | Alta | `update/BuildFileBackup.kt` |
-| RF-13 | Simular cambios sin modificar archivos (`--dry-run`) | Media | `cli/UpdateCommand.kt` |
-| RF-14 | Fallar proceso en CI ante CVEs críticos (`--fail-on-critical`) | Media | `cli/DepAnalyzerCli.kt` |
+| ID    | Requerimiento funcional final                                                             | Prioridad | Trazabilidad técnica (módulo/código)                                                                                |
+|-------|-------------------------------------------------------------------------------------------|-----------|---------------------------------------------------------------------------------------------------------------------|
+| RF-01 | Detectar automáticamente tipo de proyecto (`pom.xml`, `build.gradle`, `build.gradle.kts`) | Alta      | `parser/ProjectDetector.kt`                                                                                         |
+| RF-02 | Parsear dependencias Maven y Gradle                                                       | Alta      | `parser/PomDependencyParser.kt`, `parser/GradleGroovyDependencyParser.kt`, `parser/GradleKotlinDependencyParser.kt` |
+| RF-03 | Parsear repositorios del proyecto                                                         | Alta      | `parser/GradleRepositoryParser.kt`, `parser/PomDependencyParser.kt`                                                 |
+| RF-04 | Consultar versión más reciente por repositorio                                            | Alta      | `repository/RepositoryClient.kt`, `core/ProjectAnalyzer.kt`                                                         |
+| RF-05 | Detectar CVEs usando OSS Index                                                            | Alta      | `repository/OssIndexClient.kt`, `core/ProjectAnalyzer.kt`                                                           |
+| RF-06 | Enriquecer CVEs con NVD (opcional)                                                        | Media     | `repository/NvdClient.kt`, `repository/VulnerabilityMerger.kt`, flag `--use-nvd`                                    |
+| RF-07 | Clasificar vulnerabilidades directas y transitivas                                        | Alta      | `core/ProjectAnalyzer.kt`, `report/DependencyReport.kt`                                                             |
+| RF-08 | Mostrar resultados en consola con árbol de dependencias                                   | Alta      | `report/ConsoleRenderer.kt`, `report/DependencyTreeBuilder.kt`                                                      |
+| RF-09 | Exportar resultados a JSON                                                                | Alta      | `report/ReportGenerator.kt`, opción `--output json`                                                                 |
+| RF-10 | Ofrecer interfaz TUI interactiva                                                          | Media     | `tui/AnalyzeTuiApp.kt`, comando `tui` y flag `--tui`                                                                |
+| RF-11 | Ejecutar actualización guiada con selección interactiva                                   | Alta      | `cli/UpdateCommand.kt`, `update/UpdatePlanner.kt`                                                                   |
+| RF-12 | Respaldar build file antes de aplicar cambios                                             | Alta      | `update/BuildFileBackup.kt`                                                                                         |
+| RF-13 | Simular cambios sin modificar archivos (`--dry-run`)                                      | Media     | `cli/UpdateCommand.kt`                                                                                              |
+| RF-14 | Fallar proceso en CI ante CVEs críticos (`--fail-on-critical`)                            | Media     | `cli/DepAnalyzerCli.kt`                                                                                             |
 
 ## 5.4 Regla de negocio
 
-| ID | Regla de negocio | Aplicación |
-|---|---|---|
-| RN-01 | Ninguna actualización de dependencia se aplica sin confirmación interactiva del usuario | Flujo `update` y flujo de actualización en TUI |
-| RN-02 | Antes de modificar `pom.xml` / `build.gradle` / `build.gradle.kts` se genera backup `.bak` | `BuildFileBackup.ensureBackup` |
-| RN-03 | En caso de error de fuente externa (OSS Index/NVD), el análisis continúa con degradación controlada | Manejo de excepciones en `ProjectAnalyzer` |
-| RN-04 | Si se usan credenciales de repositorio, solo se envían a destinos HTTPS confiables explícitos | `InputSafety.isTrustedCredentialDestination` |
-| RN-05 | En conflictos de token OSS Index, el token CLI tiene prioridad sobre variable de entorno | `--oss-index-token` vs `OSS_INDEX_TOKEN` |
-| RN-06 | El modo TUI prioriza cobertura dinámica de transitivas para análisis interactivo | Forzado de análisis dinámico en TUI |
+| ID    | Regla de negocio                                                                                    | Aplicación                                     |
+|-------|-----------------------------------------------------------------------------------------------------|------------------------------------------------|
+| RN-01 | Ninguna actualización de dependencia se aplica sin confirmación interactiva del usuario             | Flujo `update` y flujo de actualización en TUI |
+| RN-02 | Antes de modificar `pom.xml` / `build.gradle` / `build.gradle.kts` se genera backup `.bak`          | `BuildFileBackup.ensureBackup`                 |
+| RN-03 | En caso de error de fuente externa (OSS Index/NVD), el análisis continúa con degradación controlada | Manejo de excepciones en `ProjectAnalyzer`     |
+| RN-04 | Si se usan credenciales de repositorio, solo se envían a destinos HTTPS confiables explícitos       | `InputSafety.isTrustedCredentialDestination`   |
+| RN-05 | En conflictos de token OSS Index, el token CLI tiene prioridad sobre variable de entorno            | `--oss-index-token` vs `OSS_INDEX_TOKEN`       |
+| RN-06 | El modo TUI prioriza cobertura dinámica de transitivas para análisis interactivo                    | Forzado de análisis dinámico en TUI            |
 
 # 6. Fase de Desarrollo
 
 ## 6.1 Perfil del usuario
 
-| Perfil | Características | Necesidades principales |
-|---|---|---|
-| Usuario técnico básico | Usa terminal para comandos directos | Diagnóstico rápido en consola |
-| Usuario técnico intermedio | Integra herramientas con scripts | Salida JSON y parámetros de control |
-| Usuario técnico avanzado/CI | Automatiza control de calidad y seguridad | Exit code controlado y reportes estables |
-| Mantenedor académico | Evalúa trazabilidad y evidencia | Coherencia entre documentos, código y pruebas |
+| Perfil                      | Características                           | Necesidades principales                       |
+|-----------------------------|-------------------------------------------|-----------------------------------------------|
+| Usuario técnico básico      | Usa terminal para comandos directos       | Diagnóstico rápido en consola                 |
+| Usuario técnico intermedio  | Integra herramientas con scripts          | Salida JSON y parámetros de control           |
+| Usuario técnico avanzado/CI | Automatiza control de calidad y seguridad | Exit code controlado y reportes estables      |
+| Mantenedor académico        | Evalúa trazabilidad y evidencia           | Coherencia entre documentos, código y pruebas |
 
 ## 6.2 Modelo Conceptual
 
@@ -274,15 +285,12 @@ flowchart TD
     CLI[com.depanalyzer.cli] --> CORE[com.depanalyzer.core]
     CLI --> TUI[com.depanalyzer.tui]
     CLI --> UPDATE[com.depanalyzer.update]
-
     CORE --> PARSER[com.depanalyzer.parser]
     CORE --> REPO[com.depanalyzer.repository]
     CORE --> REPORT[com.depanalyzer.report]
     CORE --> GRAPH[com.depanalyzer.core.graph]
-
     UPDATE --> CORE
     UPDATE --> PARSER
-
     REPO --> SECURITY[com.depanalyzer.security]
 ```
 
@@ -296,7 +304,6 @@ flowchart LR
     U --> UC4[Actualizar dependencias guiadas]
     U --> UC5[Ejecutar dry-run]
     U --> UC6[Fallar build por CVE crítico]
-
     UC1 --> S[JavaDepAnalyzer]
     UC2 --> S
     UC3 --> S
@@ -307,30 +314,30 @@ flowchart LR
 
 ### 6.2.3 Escenarios de casos de uso (narrativas)
 
-| Caso de uso | Actor | Flujo principal | Resultado |
-|---|---|---|---|
-| CU-01 Analizar proyecto | Usuario | Ejecuta `analyze <ruta>`; el sistema detecta tipo, parsea, consulta versiones/CVEs y renderiza | Reporte en consola con estado de dependencias |
-| CU-02 Exportar JSON | Usuario | Ejecuta `analyze <ruta> --output json` | Se genera `dependency-report.json` |
-| CU-03 Analizar con TUI | Usuario | Ejecuta `tui <ruta>` o `analyze --tui`; el sistema muestra progreso y paneles interactivos | Visualización interactiva de hallazgos |
-| CU-04 Actualizar dependencias | Usuario | Ejecuta `update <ruta>`; selecciona sugerencias; confirma | Build file actualizado y backup creado |
-| CU-05 Simular actualización | Usuario | Ejecuta `update --dry-run`; selecciona sugerencias | Resumen de cambios simulados sin modificar archivos |
+| Caso de uso                   | Actor   | Flujo principal                                                                                | Resultado                                           |
+|-------------------------------|---------|------------------------------------------------------------------------------------------------|-----------------------------------------------------|
+| CU-01 Analizar proyecto       | Usuario | Ejecuta `analyze <ruta>`; el sistema detecta tipo, parsea, consulta versiones/CVEs y renderiza | Reporte en consola con estado de dependencias       |
+| CU-02 Exportar JSON           | Usuario | Ejecuta `analyze <ruta> --output json`                                                         | Se genera `dependency-report.json`                  |
+| CU-03 Analizar con TUI        | Usuario | Ejecuta `tui <ruta>` o `analyze --tui`; el sistema muestra progreso y paneles interactivos     | Visualización interactiva de hallazgos              |
+| CU-04 Actualizar dependencias | Usuario | Ejecuta `update <ruta>`; selecciona sugerencias; confirma                                      | Build file actualizado y backup creado              |
+| CU-05 Simular actualización   | Usuario | Ejecuta `update --dry-run`; selecciona sugerencias                                             | Resumen de cambios simulados sin modificar archivos |
 
 ## 6.3 Modelo Lógico
 
 ### 6.3.1 Analisis de objetos
 
-| Objeto | Responsabilidad | Tipo |
-|---|---|---|
-| `ProjectAnalyzer` | Orquestar análisis de dependencias, versiones y vulnerabilidades | Control |
-| `ProjectDetector` | Detectar tipo de proyecto por archivos build | Entidad de soporte |
-| `PomDependencyParser` / `Gradle*DependencyParser` | Extraer dependencias y metadatos por formato | Servicio parser |
-| `RepositoryClient` | Consultar metadatos de versión en repositorios | Servicio infraestructura |
-| `OssIndexClient` / `NvdClient` | Consultar vulnerabilidades y enriquecer CVEs | Servicio integración externa |
-| `DependencyReport` | Representar resultado consolidado de análisis | DTO de dominio |
-| `ReportGenerator` / `ConsoleRenderer` | Transformar reporte a JSON o salida legible | Presentación |
-| `AnalyzerUpdatePlanner` | Planificar sugerencias de actualización | Lógica de negocio |
-| `BuildFileUpdater` (+ implementaciones) | Aplicar cambios por tipo de build file | Estrategia |
-| `BuildFileBackup` | Crear respaldo previo a modificaciones | Seguridad operativa |
+| Objeto                                            | Responsabilidad                                                  | Tipo                         |
+|---------------------------------------------------|------------------------------------------------------------------|------------------------------|
+| `ProjectAnalyzer`                                 | Orquestar análisis de dependencias, versiones y vulnerabilidades | Control                      |
+| `ProjectDetector`                                 | Detectar tipo de proyecto por archivos build                     | Entidad de soporte           |
+| `PomDependencyParser` / `Gradle*DependencyParser` | Extraer dependencias y metadatos por formato                     | Servicio parser              |
+| `RepositoryClient`                                | Consultar metadatos de versión en repositorios                   | Servicio infraestructura     |
+| `OssIndexClient` / `NvdClient`                    | Consultar vulnerabilidades y enriquecer CVEs                     | Servicio integración externa |
+| `DependencyReport`                                | Representar resultado consolidado de análisis                    | DTO de dominio               |
+| `ReportGenerator` / `ConsoleRenderer`             | Transformar reporte a JSON o salida legible                      | Presentación                 |
+| `AnalyzerUpdatePlanner`                           | Planificar sugerencias de actualización                          | Lógica de negocio            |
+| `BuildFileUpdater` (+ implementaciones)           | Aplicar cambios por tipo de build file                           | Estrategia                   |
+| `BuildFileBackup`                                 | Crear respaldo previo a modificaciones                           | Seguridad operativa          |
 
 ### 6.3.2 Diagrama de actividades con objetos
 
@@ -367,22 +374,21 @@ sequenceDiagram
     participant OI as OssIndexClient
     participant NVD as NvdClient
     participant RG as ReportGenerator/ConsoleRenderer
-
-    Usuario->>CLI: analyze . --use-nvd --output json
-    CLI->>PA: analyze(request)
-    PA->>PD: detect(projectPath)
-    PD-->>PA: ProjectType
-    PA->>Parser: parse(buildFile)
-    Parser-->>PA: dependencies + repositories
-    PA->>RC: getLatestVersion(...)
-    RC-->>PA: latest versions
-    PA->>OI: getVulnerabilities(dependencies)
-    OI-->>PA: CVEs OSS Index
-    PA->>NVD: getVulnerabilities(dependencies)
-    NVD-->>PA: CVEs NVD
-    PA-->>CLI: DependencyReport
-    CLI->>RG: toJson(report)
-    RG-->>Usuario: dependency-report.json
+    Usuario ->> CLI: analyze . --use-nvd --output json
+    CLI ->> PA: analyze(request)
+    PA ->> PD: detect(projectPath)
+    PD -->> PA: ProjectType
+    PA ->> Parser: parse(buildFile)
+    Parser -->> PA: dependencies + repositories
+    PA ->> RC: getLatestVersion(...)
+    RC -->> PA: latest versions
+    PA ->> OI: getVulnerabilities(dependencies)
+    OI -->> PA: CVEs OSS Index
+    PA ->> NVD: getVulnerabilities(dependencies)
+    NVD -->> PA: CVEs NVD
+    PA -->> CLI: DependencyReport
+    CLI ->> RG: toJson(report)
+    RG -->> Usuario: dependency-report.json
 ```
 
 ### 6.3.4 Diagrama de clases
@@ -395,41 +401,41 @@ classDiagram
     class Update
 
     class ProjectAnalyzer {
-      +analyze(projectDir, ...): DependencyReport
+        +analyze(projectDir, ...): DependencyReport
     }
 
     class ProjectDetector {
-      +detect(directory): ProjectType
+        +detect(directory): ProjectType
     }
 
     class RepositoryClient {
-      +getLatestVersion(repository, groupId, artifactId): String?
+        +getLatestVersion(repository, groupId, artifactId): String?
     }
 
     class OssIndexClient {
-      +getVulnerabilities(dependencies): Map~String, List~Vulnerability~~
+        +getVulnerabilities(dependencies): Map~String, List~ Vulnerability~~
     }
 
     class NvdClient {
-      +getVulnerabilities(dependencies): Map~String, List~Vulnerability~~
+        +getVulnerabilities(dependencies): Map~String, List~ Vulnerability~~
     }
 
     class DependencyReport {
-      +projectName: String
-      +upToDate: List~DependencyInfo~
-      +outdated: List~OutdatedDependency~
-      +directVulnerable: List~VulnerableDependency~
-      +transitiveVulnerable: List~VulnerableDependency~
-      +dependencyTree: List~DependencyTreeNode~?
+        +projectName: String
+        +upToDate: List~DependencyInfo~
+        +outdated: List~OutdatedDependency~
+        +directVulnerable: List~VulnerableDependency~
+        +transitiveVulnerable: List~VulnerableDependency~
+        +dependencyTree: List~DependencyTreeNode~ ?
     }
 
     class AnalyzerUpdatePlanner {
-      +plan(projectDir, options): UpdatePlan
+        +plan(projectDir, options): UpdatePlan
     }
 
     class BuildFileUpdater {
-      <<interface>>
-      +applyUpdate(file, suggestion): Boolean
+        <<interface>>
+        +applyUpdate(file, suggestion): Boolean
     }
 
     class PomBuildFileUpdater
@@ -453,9 +459,12 @@ classDiagram
 # 7. Conclusiones
 
 1. El ERS define requerimientos verificables y trazables al código real del proyecto, reduciendo ambigüedad documental.
-2. El núcleo funcional del sistema cumple el objetivo académico: análisis integral de dependencias, versiones y vulnerabilidades.
-3. La presencia de `update` y TUI confirma un alcance de remediación guiada (no automática), con controles de seguridad operativa.
-4. Los requisitos no funcionales priorizan portabilidad, seguridad de credenciales, interoperabilidad y auditabilidad en CI/CD.
+2. El núcleo funcional del sistema cumple el objetivo académico: análisis integral de dependencias, versiones y
+   vulnerabilidades.
+3. La presencia de `update` y TUI confirma un alcance de remediación guiada (no automática), con controles de seguridad
+   operativa.
+4. Los requisitos no funcionales priorizan portabilidad, seguridad de credenciales, interoperabilidad y auditabilidad en
+   CI/CD.
 5. La arquitectura modular facilita mantenimiento, pruebas y evolución incremental del sistema.
 
 # 8. Recomendaciones
