@@ -59,6 +59,9 @@ tasks.withType<JavaCompile> {
     options.encoding = "UTF-8"
 }
 
+val enableNativeImageAgent =
+    providers.gradleProperty("enableNativeImageAgent").orNull?.toBoolean() == true
+
 graalvmNative {
     toolchainDetection.set(true)
 
@@ -82,7 +85,7 @@ graalvmNative {
     }
 
     agent {
-        enabled.set(true)
+        enabled.set(enableNativeImageAgent)
         metadataCopy {
             inputTaskNames.add("test")
             outputDirectories.add("src/main/resources/META-INF/native-image/com.depanalyzer/depanalyzer")
