@@ -133,4 +133,21 @@ class AnalyzeCommandTest {
 
         assertEquals(true, tuiLaunched)
     }
+
+    @Test
+    fun `passes command output flag to analysis request`() {
+        val projectDir = Files.createTempDirectory("analyze-command-output")
+        var capturedRequest: AnalyzeExecutionRequest? = null
+
+        val command = Analyze(
+            analyzeExecutor = { request ->
+                capturedRequest = request
+                DependencyReport(projectName = "command-output")
+            }
+        )
+
+        command.parse(listOf(projectDir.toString(), "--command-output"))
+
+        assertEquals(capturedRequest?.showCommandOutput, true)
+    }
 }

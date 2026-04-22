@@ -8,7 +8,12 @@ object GradleDependencyTreeParser {
         if (output.isEmpty()) return emptyList()
 
         val result = mutableListOf<DependencyNode>()
-        val projects = extractProjects(output)
+        val projects = extractProjects(output).ifEmpty {
+            if (verbose) {
+                System.err.println("[GradleDependencyTreeParser] No explicit project headers found, parsing entire output")
+            }
+            listOf("root" to output)
+        }
 
         if (verbose) {
             System.err.println("[GradleDependencyTreeParser] Found ${projects.size} projects")
@@ -29,11 +34,14 @@ object GradleDependencyTreeParser {
             }
         }
 
-        return result
+        return deduplicateRoots(result)
     }
 
     private fun extractProjects(output: String): List<Pair<String, String>> {
-        val projectRegex = Regex("""(?m)^Project\s+'([^']*)'""")
+        val projectRegex = Regex(
+            pattern = """^(?:Root\s+)?project\s+'([^']*)'""",
+            options = setOf(RegexOption.MULTILINE, RegexOption.IGNORE_CASE)
+        )
         val matches = projectRegex.findAll(output)
         val projects = mutableListOf<Pair<String, String>>()
 
@@ -52,7 +60,7 @@ object GradleDependencyTreeParser {
     }
 
     private fun extractConfigurations(projectContent: String): List<Pair<String, String>> {
-        val configRegex = Regex("""(?m)^([a-zA-Z]+(?:[A-Z][a-z]*)*)\s*-\s*""")
+        val configRegex = Regex("""(?m)^([A-Za-z][A-Za-z0-9-]*)\s*-\s*""")
         val matches = configRegex.findAll(projectContent)
         val configurations = mutableListOf<Pair<String, String>>()
 
@@ -84,8 +92,12 @@ object GradleDependencyTreeParser {
     }
 
     private fun parseTreeLine(line: String, scope: String): TreeLine? {
+        if (line.contains("(c)")) {
+            return null
+        }
+
         val depth = calculateDepth(line)
-        
+
         // Extract the dependency coordinate
         val coordinateRegex = Regex("""([a-zA-Z0-9\-_.]+):([a-zA-Z0-9\-_.]+):([a-zA-Z0-9\-_.]+)""")
         val match = coordinateRegex.find(line) ?: return null
@@ -129,17 +141,17 @@ object GradleDependencyTreeParser {
         val result = mutableListOf<DependencyNode>()
         val stack = mutableListOf<Pair<DependencyNode, Int>>()  // Node + depth
 
-         for (line in lines) {
-             val node = DependencyNode(
-                 id = "${line.groupId}:${line.artifactId}:${line.version}",
-                 groupId = line.groupId,
-                 artifactId = line.artifactId,
-                 version = line.version,
-                 parent = null,
-                 children = mutableListOf(),
-                 scope = line.scope,
-                 isDependencyManagement = false
-             )
+        for (line in lines) {
+            val node = DependencyNode(
+                id = "${line.groupId}:${line.artifactId}:${line.version}",
+                groupId = line.groupId,
+                artifactId = line.artifactId,
+                version = line.version,
+                parent = null,
+                children = mutableListOf(),
+                scope = line.scope,
+                isDependencyManagement = false
+            )
 
             // Pop stack until we find the parent at a shallower depth
             while (stack.isNotEmpty() && stack.last().second >= line.depth) {
@@ -164,12 +176,98 @@ object GradleDependencyTreeParser {
         return result
     }
 
+    private fun deduplicateRoots(nodes: List<DependencyNode>): List<DependencyNode> {
+        if (nodes.isEmpty()) return emptyList()
+
+        val deduped = linkedMapOf<String, DependencyNode>()
+        for (node in nodes) {
+            val existing = deduped[node.coordinate]
+            deduped[node.coordinate] = if (existing == null) {
+                copyTree(node, parent = null)
+            } else {
+                mergeTrees(existing, node, parent = null)
+            }
+        }
+        return deduped.values.toList()
+    }
+
+    private fun mergeTrees(base: DependencyNode, incoming: DependencyNode, parent: DependencyNode?): DependencyNode {
+        val baseChildrenByCoordinate = base.children.associateBy { it.coordinate }.toMutableMap()
+        for (incomingChild in incoming.children) {
+            val existing = baseChildrenByCoordinate[incomingChild.coordinate]
+            baseChildrenByCoordinate[incomingChild.coordinate] = if (existing == null) {
+                copyTree(incomingChild, parent = null)
+            } else {
+                mergeTrees(existing, incomingChild, parent = null)
+            }
+        }
+
+        val mergedChildren = baseChildrenByCoordinate.values.sortedBy { it.coordinate }.toMutableList()
+        val chosenScope = pickPreferredScope(base.scope, incoming.scope)
+
+        val merged = DependencyNode(
+            id = base.id,
+            groupId = base.groupId,
+            artifactId = base.artifactId,
+            version = base.version,
+            parent = parent,
+            children = mutableListOf(),
+            vulnerabilities = base.vulnerabilities,
+            scope = chosenScope,
+            isDependencyManagement = base.isDependencyManagement || incoming.isDependencyManagement
+        )
+
+        val childrenWithParent = mergedChildren.map { child ->
+            setParentRecursively(child, merged)
+        }
+        merged.children.addAll(childrenWithParent)
+        return merged
+    }
+
+    private fun copyTree(node: DependencyNode, parent: DependencyNode?): DependencyNode {
+        val copy = DependencyNode(
+            id = node.id,
+            groupId = node.groupId,
+            artifactId = node.artifactId,
+            version = node.version,
+            parent = parent,
+            children = mutableListOf(),
+            vulnerabilities = node.vulnerabilities,
+            scope = node.scope,
+            isDependencyManagement = node.isDependencyManagement
+        )
+        copy.children.addAll(node.children.map { child -> copyTree(child, copy) })
+        return copy
+    }
+
+    private fun setParentRecursively(node: DependencyNode, parent: DependencyNode): DependencyNode {
+        return copyTree(node, parent)
+    }
+
+    private fun pickPreferredScope(primary: String?, secondary: String?): String? {
+        val score = mapOf(
+            "compile" to 4,
+            "runtime" to 3,
+            "provided" to 2,
+            "test" to 1
+        )
+
+        val left = primary?.lowercase()
+        val right = secondary?.lowercase()
+        if (left == null) return secondary
+        if (right == null) return primary
+
+        return if ((score[left] ?: 0) >= (score[right] ?: 0)) primary else secondary
+    }
+
     private fun mapConfigurationToScope(configName: String): String {
         return when {
             configName.contains("compile", ignoreCase = true) && !configName.contains("test", ignoreCase = true) ->
                 "compile"
+
             configName.contains("runtime", ignoreCase = true) && !configName.contains("test", ignoreCase = true) ->
                 "runtime"
+
             configName.contains("test", ignoreCase = true) -> "test"
             configName.contains("provided", ignoreCase = true) -> "provided"
             else -> "compile"  // default

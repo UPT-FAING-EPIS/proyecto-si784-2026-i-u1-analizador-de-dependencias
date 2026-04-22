@@ -2,6 +2,7 @@ package com.depanalyzer.parser.gradle
 
 import com.depanalyzer.cli.ProgressTracker
 import java.io.File
+import java.io.InputStream
 import java.util.concurrent.TimeUnit
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
@@ -20,7 +21,8 @@ object GradleCommandExecutor {
         projectDir: File,
         timeout: Duration = DEFAULT_TIMEOUT_SECONDS.seconds,
         verbose: Boolean = false,
-        isDefaultTimeout: Boolean = true
+        isDefaultTimeout: Boolean = true,
+        onOutputLine: ((String) -> Unit)? = null
     ): String? {
         require(projectDir.exists() && projectDir.isDirectory) { "Project directory must exist" }
 
@@ -38,6 +40,7 @@ object GradleCommandExecutor {
             timeout = timeout,
             verbose = verbose,
             isDefaultTimeout = isDefaultTimeout,
+            onOutputLine = onOutputLine,
             additionalFlags = emptyList(),
             retryCount = 0
         )
@@ -49,6 +52,7 @@ object GradleCommandExecutor {
         timeout: Duration,
         verbose: Boolean,
         isDefaultTimeout: Boolean,
+        onOutputLine: ((String) -> Unit)?,
         additionalFlags: List<String>,
         retryCount: Int
     ): String? {
@@ -81,6 +85,18 @@ object GradleCommandExecutor {
                 .directory(projectDir)
 
             val process = processBuilder.start()
+            val stdout = StringBuilder()
+            val stderr = StringBuilder()
+            val stdoutReader = consumeStream(
+                inputStream = process.inputStream,
+                sink = stdout,
+                onOutputLine = onOutputLine
+            )
+            val stderrReader = consumeStream(
+                inputStream = process.errorStream,
+                sink = stderr,
+                onOutputLine = onOutputLine
+            )
             val completed = process.waitFor(timeout.inWholeSeconds, TimeUnit.SECONDS)
 
             if (!completed) {
@@ -88,22 +104,27 @@ object GradleCommandExecutor {
                     System.err.println("[GradleCommandExecutor] Command timed out after ${timeout.inWholeSeconds}s")
                 }
                 process.destroyForcibly()
+                stdoutReader.join(1000)
+                stderrReader.join(1000)
                 lastErrorInfo = null
                 return null
             }
 
-            val stdout = process.inputStream.bufferedReader().use { it.readText() }
-            val stderr = process.errorStream.bufferedReader().use { it.readText() }
-            val fullOutput = stdout + "\n" + stderr
+            stdoutReader.join(3000)
+            stderrReader.join(3000)
+
+            val stdoutText = stdout.toString()
+            val stderrText = stderr.toString()
+            val fullOutput = stdoutText + "\n" + stderrText
 
             val exitCode = process.exitValue()
             val hasBuildFailure = fullOutput.contains("BUILD FAILED", ignoreCase = true) || exitCode != 0
 
             if (verbose) {
                 System.err.println("[GradleCommandExecutor] Command completed with exit code: $exitCode")
-                System.err.println("[GradleCommandExecutor] Output length: ${stdout.length} characters")
-                if (stderr.isNotEmpty()) {
-                    System.err.println("[GradleCommandExecutor] Stderr length: ${stderr.length} characters")
+                System.err.println("[GradleCommandExecutor] Output length: ${stdoutText.length} characters")
+                if (stderrText.isNotEmpty()) {
+                    System.err.println("[GradleCommandExecutor] Stderr length: ${stderrText.length} characters")
                 }
             }
 
@@ -115,16 +136,19 @@ object GradleCommandExecutor {
                         System.err.println("[GradleCommandExecutor] Detected ${errorInfo.type}: ${errorInfo.message}")
                         System.err.println("[GradleCommandExecutor] Will retry with flags: ${errorInfo.suggestedFlags}")
                     }
-                    
-                    return executeWithRetry(
-                        gradleCommand = gradleCommand,
-                        projectDir = projectDir,
-                        timeout = timeout,
-                        verbose = verbose,
-                        isDefaultTimeout = isDefaultTimeout,
-                        additionalFlags = errorInfo.suggestedFlags,
-                        retryCount = retryCount + 1
-                    )
+
+                    if (errorInfo.suggestedFlags.isNotEmpty()) {
+                        return executeWithRetry(
+                            gradleCommand = gradleCommand,
+                            projectDir = projectDir,
+                            timeout = timeout,
+                            verbose = verbose,
+                            isDefaultTimeout = isDefaultTimeout,
+                            onOutputLine = onOutputLine,
+                            additionalFlags = errorInfo.suggestedFlags,
+                            retryCount = retryCount + 1
+                        )
+                    }
                 }
             }
 
@@ -136,9 +160,9 @@ object GradleCommandExecutor {
                 return null
             }
 
-            ProgressTracker.logSuccess("Árbol de dependencias resuelto (${stdout.length} chars)")
+            ProgressTracker.logSuccess("Árbol de dependencias resuelto (${stdoutText.length} chars)")
             lastErrorInfo = null
-            stdout.ifEmpty { null }
+            stdoutText.ifEmpty { null }
         } catch (e: Exception) {
             if (verbose) {
                 System.err.println("[GradleCommandExecutor] Exception during command execution:")
@@ -146,6 +170,26 @@ object GradleCommandExecutor {
             }
             lastErrorInfo = null
             null
+        }
+    }
+
+    private fun consumeStream(
+        inputStream: InputStream,
+        sink: StringBuilder,
+        onOutputLine: ((String) -> Unit)?
+    ): Thread {
+        return Thread {
+            inputStream.bufferedReader().useLines { lines ->
+                lines.forEach { line ->
+                    synchronized(sink) {
+                        sink.appendLine(line)
+                    }
+                    onOutputLine?.invoke(line)
+                }
+            }
+        }.apply {
+            isDaemon = true
+            start()
         }
     }
 }

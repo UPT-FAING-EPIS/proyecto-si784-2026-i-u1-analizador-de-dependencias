@@ -2,6 +2,7 @@ package com.depanalyzer.parser.maven
 
 import com.depanalyzer.cli.ProgressTracker
 import java.io.File
+import java.io.InputStream
 import java.util.concurrent.TimeUnit
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
@@ -13,7 +14,8 @@ object MavenCommandExecutor {
         projectDir: File,
         timeout: Duration = DEFAULT_TIMEOUT_SECONDS.seconds,
         verbose: Boolean = false,
-        isDefaultTimeout: Boolean = true
+        isDefaultTimeout: Boolean = true,
+        onOutputLine: ((String) -> Unit)? = null
     ): String? = try {
         if (!projectDir.exists() || !projectDir.isDirectory) {
             if (verbose) System.err.println("[MavenCommandExecutor] Project directory doesn't exist or is not a directory")
@@ -46,17 +48,24 @@ object MavenCommandExecutor {
             .redirectErrorStream(true)
             .start()
 
+        val outputBuffer = StringBuilder()
+        val outputReader = consumeStream(
+            inputStream = process.inputStream,
+            sink = outputBuffer,
+            onOutputLine = onOutputLine
+        )
+
         val completed = process.waitFor(timeout.inWholeSeconds, TimeUnit.SECONDS)
 
         if (!completed) {
             process.destroyForcibly()
+            outputReader.join(1000)
             if (verbose) System.err.println("[MavenCommandExecutor] Execution timeout after ${timeout.inWholeSeconds} seconds")
             return null
         }
 
-        val output = process.inputStream.bufferedReader().use { reader ->
-            reader.readText()
-        }
+        outputReader.join(3000)
+        val output = outputBuffer.toString()
 
         val exitCode = process.exitValue()
 
@@ -85,5 +94,25 @@ object MavenCommandExecutor {
             e.printStackTrace(System.err)
         }
         null
+    }
+
+    private fun consumeStream(
+        inputStream: InputStream,
+        sink: StringBuilder,
+        onOutputLine: ((String) -> Unit)?
+    ): Thread {
+        return Thread {
+            inputStream.bufferedReader().useLines { lines ->
+                lines.forEach { line ->
+                    synchronized(sink) {
+                        sink.appendLine(line)
+                    }
+                    onOutputLine?.invoke(line)
+                }
+            }
+        }.apply {
+            isDaemon = true
+            start()
+        }
     }
 }

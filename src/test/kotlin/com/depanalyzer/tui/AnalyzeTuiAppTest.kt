@@ -9,6 +9,33 @@ import kotlin.test.assertTrue
 
 class AnalyzeTuiAppTest {
     @Test
+    fun `recoverable console read error detects windows native timeout`() {
+        val app = AnalyzeTuiApp()
+        val error = RuntimeException(
+            "Error reading from console input: waitResult=258"
+        ).apply {
+            stackTrace = arrayOf(
+                StackTraceElement(
+                    "com.github.ajalt.mordant.terminal.terminalinterface.nativeimage.TerminalInterfaceNativeImageWindows",
+                    "readRawEvent",
+                    "TerminalInterface.nativeimage.windows.kt",
+                    162
+                )
+            )
+        }
+
+        assertTrue(app.isRecoverableConsoleReadError(error))
+    }
+
+    @Test
+    fun `recoverable console read error ignores unrelated runtime exceptions`() {
+        val app = AnalyzeTuiApp()
+        val error = RuntimeException("Unexpected failure")
+
+        assertTrue(!app.isRecoverableConsoleReadError(error))
+    }
+
+    @Test
     fun `build entries includes direct update suggestion when latest version exists`() {
         val report = DependencyReport(
             projectName = "demo",

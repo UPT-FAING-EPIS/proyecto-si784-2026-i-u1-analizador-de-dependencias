@@ -30,6 +30,14 @@ object GradleErrorDetector {
                 )
             }
 
+            isNestedBuildMismatch(output) -> {
+                GradleErrorInfo(
+                    type = GradleErrorType.NESTED_BUILD_MISMATCH,
+                    message = "Target project is not part of parent Gradle settings build",
+                    suggestedFlags = emptyList()
+                )
+            }
+
             else -> null
         }
     }
@@ -57,6 +65,10 @@ object GradleErrorDetector {
                 output.contains("ClassDefNotFound", ignoreCase = true)
     }
 
+    private fun isNestedBuildMismatch(output: String): Boolean {
+        return output.contains("is not part of the build defined by settings file", ignoreCase = true)
+    }
+
     private fun extractPluginName(output: String): String? {
         val regex = Regex("""(?:plugin of type|plugin request)\s+['\[]([^'"\]]+)['\]]""", RegexOption.IGNORE_CASE)
         return regex.find(output)?.groupValues?.get(1)?.substringAfterLast('.')
@@ -80,6 +92,8 @@ enum class GradleErrorType {
     JVM_INCOMPATIBLE,
 
     CLASSPATH_ERROR,
+
+    NESTED_BUILD_MISMATCH,
 
     UNKNOWN
 }

@@ -56,7 +56,12 @@ class GradleErrorDetectorTest {
         val error = GradleErrorDetector.detectError(output)
         assertNotNull(error)
         assertEquals(GradleErrorType.JVM_INCOMPATIBLE, error.type)
-        assert(error.message.contains("Gradle version", ignoreCase = true) || error.message.contains("JVM", ignoreCase = true))
+        assert(
+            error.message.contains("Gradle version", ignoreCase = true) || error.message.contains(
+                "JVM",
+                ignoreCase = true
+            )
+        )
     }
 
     @Test
@@ -174,5 +179,19 @@ class GradleErrorDetectorTest {
         val error = GradleErrorDetector.detectError(pluginError)
         assertNotNull(error)
         assertEquals(GradleErrorType.PLUGIN_INCOMPATIBLE, error.type)
+    }
+
+    @Test
+    fun `should detect nested build mismatch error`() {
+        val output = """
+            FAILURE: Build failed with an exception.
+            * What went wrong:
+            Project directory 'D:\\repo\\repos\\java-binance-api' is not part of the build defined by settings file 'D:\\repo\\settings.gradle.kts'.
+        """.trimIndent()
+
+        val error = GradleErrorDetector.detectError(output)
+        assertNotNull(error)
+        assertEquals(GradleErrorType.NESTED_BUILD_MISMATCH, error.type)
+        assertEquals(emptyList(), error.suggestedFlags)
     }
 }

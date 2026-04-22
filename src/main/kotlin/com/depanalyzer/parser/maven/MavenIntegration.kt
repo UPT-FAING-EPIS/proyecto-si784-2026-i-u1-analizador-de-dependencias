@@ -13,7 +13,8 @@ object MavenIntegration {
         projectDir: File,
         enableMaven: Boolean = true,
         verbose: Boolean = false,
-        timeoutSeconds: Long = 1800L
+        timeoutSeconds: Long = 1800L,
+        showCommandOutput: Boolean = false
     ): List<DependencyNode> {
         val pomFile = File(projectDir, "pom.xml")
 
@@ -39,7 +40,12 @@ object MavenIntegration {
             projectDir,
             timeout = timeoutSeconds.seconds,
             verbose = verbose,
-            isDefaultTimeout = (timeoutSeconds == 1800L)
+            isDefaultTimeout = (timeoutSeconds == 1800L),
+            onOutputLine = if (showCommandOutput) {
+                { line -> ProgressTracker.logStep("   [maven] $line") }
+            } else {
+                null
+            }
         )
         if (treeOutput == null) {
             ProgressTracker.logWarning("Análisis dinámico falló. Usando análisis estático (menos preciso).")

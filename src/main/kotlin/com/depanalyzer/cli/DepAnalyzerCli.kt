@@ -36,6 +36,7 @@ data class AnalyzeExecutionRequest(
     val treeExpandMode: TreeExpandMode,
     val timeoutSeconds: Long,
     val useNvd: Boolean,
+    val showCommandOutput: Boolean = false,
     val ossIndexToken: String?,
     val nvdApiKey: String?,
     val onPartialReport: ((DependencyReport) -> Unit)? = null
@@ -65,6 +66,7 @@ private fun defaultAnalyzeExecutor(request: AnalyzeExecutionRequest): Dependency
         treeExpandMode = request.treeExpandMode,
         timeoutSeconds = request.timeoutSeconds,
         useNvd = request.useNvd,
+        showCommandOutput = request.showCommandOutput,
         onPartialReport = request.onPartialReport
     )
 }
@@ -152,6 +154,10 @@ abstract class BaseAnalyzeCommand(
         "--use-nvd",
         help = "Enriquece vulnerabilidades con datos de NVD (requiere NVD_API_KEY)"
     ).flag()
+    private val commandOutput: Boolean by option(
+        "--command-output",
+        help = "Muestra salida detallada de comandos Gradle/Maven durante el analisis dinamico"
+    ).flag()
     private val failOnCritical: Boolean by option(
         "--fail-on-critical",
         help = "Retorna exit code 1 si se detectan CVEs críticos"
@@ -219,6 +225,7 @@ abstract class BaseAnalyzeCommand(
                     treeExpandMode = expandMode,
                     timeoutSeconds = timeoutSeconds,
                     useNvd = useNvd,
+                    showCommandOutput = commandOutput,
                     ossIndexToken = token,
                     nvdApiKey = nvdApiKey
                 )
@@ -256,6 +263,7 @@ abstract class BaseAnalyzeCommand(
                 treeExpandMode = expandMode,
                 timeoutSeconds = timeoutSeconds,
                 useNvd = useNvd,
+                showCommandOutput = commandOutput,
                 ossIndexToken = token,
                 nvdApiKey = nvdApiKey
             )

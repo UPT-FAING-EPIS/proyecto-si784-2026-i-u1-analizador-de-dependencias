@@ -9,8 +9,8 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import tools.jackson.databind.JsonNode
 import tools.jackson.databind.json.JsonMapper
-import tools.jackson.module.kotlin.KotlinModule
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 import kotlin.math.pow
@@ -35,9 +35,7 @@ class OssIndexClient(
         .addPathSegments("api/v3/component-report")
         .build()
 
-    private val jsonMapper = JsonMapper.builder()
-        .addModule(KotlinModule.Builder().build())
-        .build()
+    private val jsonMapper = JsonMapper.builder().build()
 
     fun getVulnerabilities(dependencies: List<ParsedDependency>): Map<String, List<Vulnerability>> {
         if (dependencies.isEmpty()) {
@@ -63,7 +61,6 @@ class OssIndexClient(
                 val reports = queryBatch(batch)
                 reports.forEach { report ->
                     if (report.vulnerabilities.isNotEmpty()) {
-                        // Parse Maven coordinates to extract groupId, artifactId, version
                         val affectedDependency = parseAffectedDependency(report.coordinates)
 
                         val vulnerabilities = report.vulnerabilities.map { ossVuln ->
@@ -118,7 +115,7 @@ class OssIndexClient(
                 when {
                     response.isSuccessful -> {
                         val body = response.body.string()
-                        jsonMapper.readValue(body, Array<ComponentReportResponse>::class.java).toList()
+                        parseComponentReports(body)
                     }
 
                     response.code == 429 && retries < MAX_RETRIES -> {
@@ -145,6 +142,64 @@ class OssIndexClient(
     private fun isVariableVersion(version: String): Boolean {
         val dollarSign = "$"
         return version.startsWith(dollarSign) || version.startsWith(dollarSign + "{")
+    }
+
+    private fun parseComponentReports(body: String): List<ComponentReportResponse> {
+        val root = jsonMapper.readTree(body)
+        if (!root.isArray) {
+            return emptyList()
+        }
+
+        return root.mapNotNull { node ->
+            val coordinates = node.path("coordinates").asText().takeIf { it.isNotBlank() } ?: return@mapNotNull null
+            val vulnerabilities = node.path("vulnerabilities")
+                .takeIf { it.isArray }
+                ?.mapNotNull(::parseVulnerability)
+                .orEmpty()
+
+            ComponentReportResponse(
+                coordinates = coordinates,
+                vulnerabilities = vulnerabilities,
+                reference = node.path("reference").textOrNull(),
+                timestamp = node.path("timestamp").longOrNull()
+            )
+        }
+    }
+
+    private fun parseVulnerability(node: JsonNode): OssIndexVulnerability? {
+        val id = node.path("id").asText().takeIf { it.isNotBlank() } ?: return null
+        val title = node.path("title").asText().takeIf { it.isNotBlank() } ?: id
+
+        return OssIndexVulnerability(
+            id = id,
+            title = title,
+            description = node.path("description").textOrNull(),
+            cvssScore = node.path("cvssScore").doubleOrNull(),
+            reference = node.path("reference").textOrNull()
+        )
+    }
+
+    private fun JsonNode.textOrNull(): String? {
+        if (isNull || isMissingNode) return null
+        return asText().takeIf { it.isNotBlank() }
+    }
+
+    private fun JsonNode.longOrNull(): Long? {
+        if (isNull || isMissingNode) return null
+        return when {
+            isIntegralNumber -> longValue()
+            isTextual -> asText().toLongOrNull()
+            else -> null
+        }
+    }
+
+    private fun JsonNode.doubleOrNull(): Double? {
+        if (isNull || isMissingNode) return null
+        return when {
+            isNumber -> doubleValue()
+            isTextual -> asText().toDoubleOrNull()
+            else -> null
+        }
     }
 
     private fun parseAffectedDependency(coordinates: String): AffectedDependency {

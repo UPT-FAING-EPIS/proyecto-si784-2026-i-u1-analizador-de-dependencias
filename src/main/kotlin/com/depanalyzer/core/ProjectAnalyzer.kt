@@ -28,6 +28,7 @@ class ProjectAnalyzer(
         treeExpandMode: TreeExpandMode = TreeExpandMode.ALL,
         timeoutSeconds: Long = 1800L,
         useNvd: Boolean = false,
+        showCommandOutput: Boolean = false,
         onPartialReport: ((DependencyReport) -> Unit)? = null
     ): DependencyReport {
         ProgressTracker.advanceProgress("Detección")
@@ -44,7 +45,8 @@ class ProjectAnalyzer(
                     projectDir = dirFile,
                     enableMaven = !disableMaven,
                     verbose = verbose,
-                    timeoutSeconds = timeoutSeconds
+                    timeoutSeconds = timeoutSeconds,
+                    showCommandOutput = showCommandOutput
                 )
 
                 val parsedDeps = mavenNodes.flatMap { node ->
@@ -59,7 +61,8 @@ class ProjectAnalyzer(
                     projectDir = dirFile,
                     enableGradle = !disableGradle,
                     verbose = verbose,
-                    timeoutSeconds = timeoutSeconds
+                    timeoutSeconds = timeoutSeconds,
+                    showCommandOutput = showCommandOutput
                 )
 
                 val parsedDeps = gradleNodes.flatMap { node ->
@@ -74,7 +77,8 @@ class ProjectAnalyzer(
                     projectDir = dirFile,
                     enableGradle = !disableGradle,
                     verbose = verbose,
-                    timeoutSeconds = timeoutSeconds
+                    timeoutSeconds = timeoutSeconds,
+                    showCommandOutput = showCommandOutput
                 )
 
                 val parsedDeps = gradleNodes.flatMap { node ->

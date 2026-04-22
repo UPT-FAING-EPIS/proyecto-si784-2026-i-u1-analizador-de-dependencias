@@ -13,7 +13,8 @@ object GradleIntegration {
         projectDir: File,
         enableGradle: Boolean = true,
         verbose: Boolean = false,
-        timeoutSeconds: Long = 1800L
+        timeoutSeconds: Long = 1800L,
+        showCommandOutput: Boolean = false
     ): List<DependencyNode> {
         require(projectDir.exists() && projectDir.isDirectory) { "Project directory must exist: ${projectDir.absolutePath}" }
 
@@ -26,10 +27,21 @@ object GradleIntegration {
         }
 
         ProgressTracker.logSearching("Buscando Gradle...")
-        if (GradleDetector.findGradleCommand(projectDir, verbose) == null) {
+        val gradleCommand = GradleDetector.findGradleCommand(projectDir, verbose)
+        if (gradleCommand == null) {
             ProgressTracker.logWarning("Gradle no encontrado. Usando análisis estático (menos preciso).")
             if (verbose) {
                 System.err.println("[GradleIntegration] No gradle command found (checked: project wrapper and global gradle), falling back to static parsing")
+            }
+            return fallbackToStaticParsing(projectDir, verbose)
+        }
+
+        if (shouldSkipDynamicForNestedBuild(projectDir)) {
+            ProgressTracker.logWarning(
+                "Análisis dinámico no compatible en subproyecto Gradle sin settings propio. Usando análisis estático."
+            )
+            if (verbose) {
+                System.err.println("[GradleIntegration] Nested build mismatch risk detected (global gradle + parent settings). Falling back to static parsing")
             }
             return fallbackToStaticParsing(projectDir, verbose)
         }
@@ -44,7 +56,12 @@ object GradleIntegration {
                 projectDir,
                 timeout = timeoutSeconds.seconds,
                 verbose = verbose,
-                isDefaultTimeout = (timeoutSeconds == 1800L)
+                isDefaultTimeout = (timeoutSeconds == 1800L),
+                onOutputLine = if (showCommandOutput) {
+                    { line -> ProgressTracker.logStep("   [gradle] $line") }
+                } else {
+                    null
+                }
             )
                 ?: run {
                     val errorInfo = GradleCommandExecutor.getLastErrorInfo()
@@ -142,6 +159,22 @@ object GradleIntegration {
 
         ProgressTracker.logSuccess("${nodes.size} dependencias encontradas (análisis estático)")
         return nodes
+    }
+
+    private fun shouldSkipDynamicForNestedBuild(projectDir: File): Boolean {
+        val absoluteProjectDir = projectDir.absoluteFile
+        val hasLocalSettings = File(absoluteProjectDir, "settings.gradle").exists() ||
+                File(absoluteProjectDir, "settings.gradle.kts").exists()
+        if (hasLocalSettings) return false
+
+        var parent = absoluteProjectDir.parentFile
+        while (parent != null) {
+            if (File(parent, "settings.gradle").exists() || File(parent, "settings.gradle.kts").exists()) {
+                return true
+            }
+            parent = parent.parentFile
+        }
+        return false
     }
 
     private fun mapConfigurationToScope(configName: String): String {

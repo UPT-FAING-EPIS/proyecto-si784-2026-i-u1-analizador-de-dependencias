@@ -24,12 +24,14 @@ enum class TuiTab {
 }
 
 enum class TuiQuickFilter {
-    ALL,
+    DIRECT,
     CVE,
     OUTDATED,
-    TRANSITIVE;
+    TRANSITIVE,
+    ALL;
 
     fun label(): String = when (this) {
+        DIRECT -> "Dependencias"
         ALL -> "Todas"
         CVE -> "Solo CVE"
         OUTDATED -> "Solo desact."
@@ -37,10 +39,11 @@ enum class TuiQuickFilter {
     }
 
     fun next(): TuiQuickFilter = when (this) {
-        ALL -> CVE
+        DIRECT -> CVE
         CVE -> OUTDATED
         OUTDATED -> TRANSITIVE
         TRANSITIVE -> ALL
+        ALL -> DIRECT
     }
 }
 
@@ -77,7 +80,7 @@ data class TuiState(
     val summary: TuiSummary,
     val cursor: Int = 0,
     val scrollOffset: Int = 0,
-    val activeFilter: TuiQuickFilter = TuiQuickFilter.ALL,
+    val activeFilter: TuiQuickFilter = TuiQuickFilter.DIRECT,
     val activeTab: TuiTab = TuiTab.DETAIL,
     val statusLine: String = "Listo",
     val confirmationPrompt: String? = null,
@@ -144,6 +147,7 @@ data class TuiState(
 
     private fun matchesQuickFilter(entry: TuiDependencyEntry): Boolean {
         return when (activeFilter) {
+            TuiQuickFilter.DIRECT -> !entry.source.equals("transitive", ignoreCase = true)
             TuiQuickFilter.ALL -> true
             TuiQuickFilter.CVE -> entry.vulnerabilityCount > 0
             TuiQuickFilter.OUTDATED -> entry.outdatedCount > 0 || entry.latestVersion != null

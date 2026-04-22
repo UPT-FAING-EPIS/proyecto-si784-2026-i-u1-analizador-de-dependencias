@@ -69,14 +69,20 @@ class AnalyzeTuiApp(
                 "Arbol transitivo no disponible: no se pudo cargar la estructura transitiva del proyecto"
             },
             isLoading = true,
-            loadingMessage = "Escaneo en progreso...",
+            loadingMessage = progressHint ?: "Escaneo en progreso...",
             loadingFrame = 0
         )
 
         val partialReport = AtomicReference<DependencyReport?>(null)
         val partialVersion = AtomicLong(0)
+        val progressMessage = AtomicReference<String?>(null)
         val executor = Executors.newSingleThreadExecutor()
-        ProgressTracker.setListener(null)
+        ProgressTracker.setListener { message ->
+            val normalized = message.trim()
+            if (normalized.isNotEmpty()) {
+                progressMessage.set(normalized)
+            }
+        }
         val future = executor.submit(
             Callable {
                 scanProvider { snapshot ->
@@ -98,6 +104,14 @@ class AnalyzeTuiApp(
 
                     while (true) {
                         var stateChanged = false
+
+                        if (state.isLoading) {
+                            val latestMessage = progressMessage.getAndSet(null)
+                            if (!latestMessage.isNullOrBlank() && latestMessage != state.loadingMessage) {
+                                state = state.copy(loadingMessage = latestMessage)
+                                stateChanged = true
+                            }
+                        }
 
                         val pendingVersion = partialVersion.get()
                         if (pendingVersion > appliedPartialVersion) {
@@ -186,7 +200,15 @@ class AnalyzeTuiApp(
                             }
                         }
 
-                        val event = rawMode.readEventOrNull(120.milliseconds)
+                        val event = try {
+                            rawMode.readEventOrNull(120.milliseconds)
+                        } catch (error: RuntimeException) {
+                            if (isRecoverableConsoleReadError(error)) {
+                                null
+                            } else {
+                                throw error
+                            }
+                        }
                         if (event is KeyboardEvent) {
                             if (event.isCtrlC) {
                                 if (!future.isDone) {
@@ -643,6 +665,21 @@ class AnalyzeTuiApp(
 
     private fun hasTransitiveTreeData(entries: List<TuiDependencyEntry>): Boolean {
         return entries.any { entry -> entry.transitiveTreeLines.any { it.startsWith("  +") } }
+    }
+
+    internal fun isRecoverableConsoleReadError(error: Throwable?): Boolean {
+        if (error == null) return false
+        val message = error.message.orEmpty()
+        if (message.contains("waitResult=258")) {
+            val fromWindowsNativeInput = error.stackTrace.any { frame ->
+                frame.className.contains("TerminalInterfaceNativeImageWindows") ||
+                        frame.fileName?.contains("TerminalInterface.nativeimage.windows.kt", ignoreCase = true) == true
+            }
+            if (fromWindowsNativeInput) {
+                return true
+            }
+        }
+        return isRecoverableConsoleReadError(error.cause)
     }
 
     private fun collectSubtreeVulnerabilities(root: DependencyTreeNode): List<TuiVulnerability> {

@@ -115,4 +115,89 @@ class GradleDependencyTreeParserTest {
         val nodes = GradleDependencyTreeParser.parse(output)
         assertEquals(0, nodes.size, "Should return empty list for empty input")
     }
+
+    @Test
+    fun `should parse gradle 9 root project output`() {
+        val output = """
+            ------------------------------------------------------------
+            Root project 'kotlintest'
+            ------------------------------------------------------------
+
+            compileClasspath - Compile classpath for 'main'.
+            +--- org.apache.logging.log4j:log4j-core:2.14.1
+            |    \--- org.apache.logging.log4j:log4j-api:2.14.1
+            \--- com.fasterxml.jackson.core:jackson-databind:2.9.10.8
+                 +--- com.fasterxml.jackson.core:jackson-annotations:2.9.10
+                 \--- com.fasterxml.jackson.core:jackson-core:2.9.10
+
+            apiElements-published (n)
+            No dependencies
+        """.trimIndent()
+
+        val nodes = GradleDependencyTreeParser.parse(output)
+
+        val log4jCore = nodes.find { it.artifactId == "log4j-core" }
+        assertNotNull(log4jCore)
+        assertTrue(log4jCore.children.any { it.artifactId == "log4j-api" })
+
+        val databind = nodes.find { it.artifactId == "jackson-databind" }
+        assertNotNull(databind)
+        assertTrue(databind.children.any { it.artifactId == "jackson-core" })
+    }
+
+    @Test
+    fun `should parse output without explicit project header`() {
+        val output = """
+            compileClasspath - Compile classpath for 'main'.
+            +--- org.yaml:snakeyaml:1.26
+            \--- commons-collections:commons-collections:3.2.1
+        """.trimIndent()
+
+        val nodes = GradleDependencyTreeParser.parse(output)
+
+        assertTrue(nodes.any { it.artifactId == "snakeyaml" })
+        assertTrue(nodes.any { it.artifactId == "commons-collections" })
+    }
+
+    @Test
+    fun `should deduplicate repeated roots across configurations`() {
+        val output = """
+            Root project 'kotlintest'
+
+            compileClasspath - Compile classpath for 'main'.
+            +--- org.apache.logging.log4j:log4j-core:2.14.1
+            |    \--- org.apache.logging.log4j:log4j-api:2.14.1
+            \--- org.yaml:snakeyaml:1.26
+
+            runtimeClasspath - Runtime classpath of 'main'.
+            +--- org.apache.logging.log4j:log4j-core:2.14.1
+            |    \--- org.apache.logging.log4j:log4j-api:2.14.1
+            \--- org.yaml:snakeyaml:1.26
+        """.trimIndent()
+
+        val nodes = GradleDependencyTreeParser.parse(output)
+
+        val log4jRoots = nodes.filter { it.coordinate == "org.apache.logging.log4j:log4j-core:2.14.1" }
+        assertEquals(1, log4jRoots.size)
+        assertTrue(log4jRoots.single().children.any { it.artifactId == "log4j-api" })
+
+        val snakeYamlRoots = nodes.filter { it.coordinate == "org.yaml:snakeyaml:1.26" }
+        assertEquals(1, snakeYamlRoots.size)
+    }
+
+    @Test
+    fun `should ignore dependency constraints entries`() {
+        val output = """
+            Root project 'kotlintest'
+
+            testCompileClasspath - Compile classpath for 'test'.
+            +--- org.jetbrains.kotlin:kotlin-test:2.3.10
+            \--- org.jetbrains.kotlin:kotlin-test:2.3.10 (c)
+        """.trimIndent()
+
+        val nodes = GradleDependencyTreeParser.parse(output)
+        val kotlinTest = nodes.filter { it.coordinate == "org.jetbrains.kotlin:kotlin-test:2.3.10" }
+
+        assertEquals(1, kotlinTest.size)
+    }
 }

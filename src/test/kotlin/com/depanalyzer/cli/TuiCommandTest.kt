@@ -78,4 +78,26 @@ class TuiCommandTest {
         assertFalse(request.disableGradle)
         assertTrue(request.includeChains)
     }
+
+    @Test
+    fun `passes command output flag in tui mode`() {
+        val detector = TerminalCapabilitiesDetector(
+            envProvider = { null },
+            hasConsole = { true }
+        )
+
+        var capturedRequest: AnalyzeExecutionRequest? = null
+        val command = Tui(
+            analyzeExecutor = { request ->
+                capturedRequest = request
+                DependencyReport(projectName = "tui-command-output")
+            },
+            terminalCapabilitiesDetector = detector,
+            tuiRunner = { config, _ -> config.scanProvider { } }
+        )
+
+        command.parse(listOf("--command-output"))
+
+        assertTrue(capturedRequest?.showCommandOutput == true)
+    }
 }
