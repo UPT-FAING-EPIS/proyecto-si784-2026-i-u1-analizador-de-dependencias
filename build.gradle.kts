@@ -3,6 +3,7 @@ import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 plugins {
     kotlin("jvm") version "2.3.10"
     application
+    id("org.graalvm.buildtools.native") version "1.0.0"
 }
 
 application {
@@ -21,6 +22,7 @@ dependencies {
     testImplementation(kotlin("test"))
     testImplementation("io.mockk:mockk:1.14.9")
     testImplementation("com.squareup.okhttp3:mockwebserver:5.3.2")
+    implementation("org.jetbrains.kotlin:kotlin-reflect:2.3.10")
 
     // Jackson 3.1.0 BOM
     implementation(platform("tools.jackson:jackson-bom:3.1.0"))
@@ -55,4 +57,36 @@ compileKotlin.compilerOptions {
 
 tasks.withType<JavaCompile> {
     options.encoding = "UTF-8"
+}
+
+graalvmNative {
+    toolchainDetection.set(true)
+
+    metadataRepository {
+        enabled.set(false)
+    }
+
+    binaries {
+        named("main") {
+            imageName.set("depanalyzer")
+            mainClass.set("com.depanalyzer.cli.DepAnalyzerCliKt")
+            fallback.set(false)
+            verbose.set(true)
+            buildArgs.addAll(
+                "--no-fallback",
+                "-H:+ReportExceptionStackTraces",
+                "--future-defaults=all",
+                "-R:MaxHeapSize=512m"
+            )
+        }
+    }
+
+    agent {
+        enabled.set(true)
+        metadataCopy {
+            inputTaskNames.add("test")
+            outputDirectories.add("src/main/resources/META-INF/native-image/com.depanalyzer/depanalyzer")
+            mergeWithExisting.set(true)
+        }
+    }
 }

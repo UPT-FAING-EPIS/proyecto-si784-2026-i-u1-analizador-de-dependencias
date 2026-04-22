@@ -14,7 +14,7 @@ desactualizadas y vulnerabilidades de seguridad (CVEs).
 
 ## Requisitos
 
-- JDK 25 o superior.
+- GraalVM JDK 25 o superior (requerido para compilar con Native Image).
 
 ## Configuración del OSS_INDEX_TOKEN
 
@@ -265,6 +265,32 @@ Cuando `--use-nvd` está activo, el analizador:
    Encontrado solo en NIST NVD
 ```
 
+## Instalación Nativa (sin JVM)
+
+También puedes instalar un binario nativo (GraalVM Native Image) sin necesidad de tener JVM en la máquina destino.
+
+### Linux/macOS con `curl | sh`
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/UPT-FAING-EPIS/proyecto-si784-2026-i-u1-analizador-de-dependencias/main/scripts/install.sh | sh
+```
+
+Instalar una versión específica (tag):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/UPT-FAING-EPIS/proyecto-si784-2026-i-u1-analizador-de-dependencias/main/scripts/install.sh | sh -s -- --version v1.0.0
+```
+
+Opciones útiles del instalador:
+
+- `--repo <owner/repo>`: usar otro repositorio GitHub (por ejemplo, un fork).
+- `--install-dir <dir>`: cambiar directorio de instalación (default: `~/.local/bin`).
+
+### Windows
+
+En Windows descarga el asset `.zip` del release correspondiente en GitHub Releases, descomprímelo y ejecuta
+`depanalyzer.exe`.
+
 ## Instalación para Pruebas
 
 Para preparar el entorno de ejecución local y generar los scripts de inicio:
@@ -499,3 +525,6 @@ Por defecto, el analizador muestra las dependencias vulnerables y con actualizac
 ## CI/CD
 
 El proyecto cuenta con un pipeline de GitHub Actions que ejecuta los tests en cada push a `main` y pull requests.
+
+Además, el workflow `Native Release` compila binarios nativos para Linux/macOS/Windows al pushear tags `v*` y
+publica los assets en GitHub Releases.
