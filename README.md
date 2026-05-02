@@ -522,9 +522,10 @@ Por defecto, el analizador muestra las dependencias vulnerables y con actualizac
 |       +-- [HIGH] CVE-2022-12345 CVSS 7.5
 ```
 
-## CI/CD
+## Repositorios de Prueba
 
-El proyecto cuenta con un pipeline de GitHub Actions que ejecuta los tests en cada push a `main` y pull requests.
-
-Además, el workflow `Native Release` compila binarios nativos para Linux/macOS/Windows al pushear tags `v*` y
-publica los assets en GitHub Releases.
+- https://github.com/abhiramIT/java
+- https://github.com/binance-exchange/binance-java-api
+- https://github.com/jmfayard/kotlintest
+- https://github.com/jitpack/gradle-simple
+- https://github.com/andyjduncan/gradle-example
