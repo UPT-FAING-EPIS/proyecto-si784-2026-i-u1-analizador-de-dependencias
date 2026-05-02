@@ -529,3 +529,5 @@ Por defecto, el analizador muestra las dependencias vulnerables y con actualizac
 - https://github.com/jmfayard/kotlintest
 - https://github.com/jitpack/gradle-simple
 - https://github.com/andyjduncan/gradle-example
+
+Set-ExecutionPolicy Unrestricted -Scope Process
