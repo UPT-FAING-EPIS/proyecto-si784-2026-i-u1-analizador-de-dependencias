@@ -3,8 +3,8 @@ package com.depanalyzer.telemetry
 import java.util.*
 
 object TelemetryConfig {
-    //private const val DEFAULT_URL = "https://pulsoback.anvian.net/"
-    private const val DEFAULT_URL = "http://localhost:8080/"
+    private const val DEFAULT_URL = "https://pulsoback.anvian.net/"
+    //private const val DEFAULT_URL = "http://localhost:8080/"
 
     private var baseUrlOverride: String? = null
 
