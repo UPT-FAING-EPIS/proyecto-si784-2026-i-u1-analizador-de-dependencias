@@ -1,6 +1,7 @@
 ﻿package com.depanalyzer.core
 
 import com.depanalyzer.cli.ProgressTracker
+import com.depanalyzer.cli.VulnerabilitySourceMode
 import com.depanalyzer.core.graph.ChainResolver
 import com.depanalyzer.core.graph.DependencyGraphBuilder
 import com.depanalyzer.parser.*
@@ -27,7 +28,7 @@ class ProjectAnalyzer(
         treeMaxDepth: Int? = null,
         treeExpandMode: TreeExpandMode = TreeExpandMode.ALL,
         timeoutSeconds: Long = 1800L,
-        useNvd: Boolean = false,
+        vulnerabilitySourceMode: VulnerabilitySourceMode = VulnerabilitySourceMode.AUTO,
         showCommandOutput: Boolean = false,
         onPartialReport: ((DependencyReport) -> Unit)? = null
     ): DependencyReport {
@@ -186,30 +187,47 @@ class ProjectAnalyzer(
 
         ProgressTracker.logSecurity("Consultando vulnerabilidades...")
         ProgressTracker.advanceProgress("CVEs")
-        val vulnerabilityMap = try {
-            val ossIndexVulns = ossIndexClient.getVulnerabilities(dependencies)
+        val vulnerabilityMap = when (vulnerabilitySourceMode) {
+            VulnerabilitySourceMode.OSS_ONLY -> {
+                try {
+                    ossIndexClient.getVulnerabilities(dependencies)
+                } catch (e: Exception) {
+                    throw IllegalStateException("[OSS] no se pudo obtener vulnerabilidades: ${e.message}", e)
+                }
+            }
 
-            if (useNvd) {
-                ProgressTracker.logSecurity("Enriqueciendo con datos de NVD...")
-                val nvdVulns = try {
+            VulnerabilitySourceMode.NVD_ONLY -> {
+                try {
                     nvdClient.getVulnerabilities(dependencies)
                 } catch (e: Exception) {
-                    if (verbose) {
-                        System.err.println("  NVD enrichment failed: ${e.message}")
-                    }
-                    emptyMap()
+                    throw IllegalStateException("[NVD] no se pudo obtener vulnerabilidades: ${e.message}", e)
                 }
+            }
 
-                VulnerabilityMerger.mergeVulnerabilities(ossIndexVulns, nvdVulns)
-            } else {
-                ossIndexVulns
+            VulnerabilitySourceMode.AUTO -> {
+                val ossVulns = runCatching { ossIndexClient.getVulnerabilities(dependencies) }.getOrNull()
+                if (ossVulns != null) {
+                    val nvdVulns = runCatching {
+                        ProgressTracker.logSecurity("Enriqueciendo con datos de NVD...")
+                        nvdClient.getVulnerabilities(dependencies)
+                    }.getOrElse {
+                        if (verbose) {
+                            System.err.println("  NVD enrichment failed: ${it.message}")
+                        }
+                        emptyMap()
+                    }
+                    VulnerabilityMerger.mergeVulnerabilities(ossVulns, nvdVulns)
+                } else {
+                    runCatching { nvdClient.getVulnerabilities(dependencies) }
+                        .getOrElse {
+                            ProgressTracker.logWarning("No se pudo consultar OSS ni NVD. Vulnerability analysis skipped.")
+                            if (verbose) {
+                                System.err.println("  Details OSS/NVD: ${it.message}")
+                            }
+                            emptyMap()
+                        }
+                }
             }
-        } catch (e: Exception) {
-            ProgressTracker.logWarning("OSS Index authentication failed (401). Vulnerability analysis skipped.")
-            if (verbose) {
-                System.err.println("  Details: ${e.message}")
-            }
-            emptyMap()
         }
 
         val (directVulnerable, transitiveVulnerable) = classifyVulnerabilities(
@@ -284,9 +302,7 @@ class ProjectAnalyzer(
             return null
         }
 
-        val outdatedByCoordinate = outdatedMap.associate {
-            "${it.groupId}:${it.artifactId}:${it.currentVersion}" to it
-        }
+        val outdatedByCoordinate = outdatedMap.associateBy { "${it.groupId}:${it.artifactId}:${it.currentVersion}" }
 
         val builder = DependencyTreeBuilder(
             vulnerabilities = vulnerabilityMap,

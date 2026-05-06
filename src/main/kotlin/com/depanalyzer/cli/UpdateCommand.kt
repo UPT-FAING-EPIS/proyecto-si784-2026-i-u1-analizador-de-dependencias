@@ -48,11 +48,7 @@ class Update(
     private val path: Path? by argument(help = "Ruta al directorio del proyecto (default: directorio actual)")
         .path(mustExist = true, canBeFile = false)
         .optional()
-    private val ossIndexToken: String? by option(
-        "-t",
-        "--oss-index-token",
-        help = "Token de autenticación para OSS Index API"
-    )
+    private val ossToken: String? by option("--oss-token", help = "Token de autenticación para OSS Index API")
     private val dynamic: Boolean by option(
         "--dynamic",
         help = "Fuerza análisis dinámico (más preciso, más lento). Por defecto: análisis estático"
@@ -193,7 +189,7 @@ class Update(
     }
 
     private fun getTokenFromCliOrEnv(): String? {
-        val cliToken = runCatching { ossIndexToken }.getOrNull()
+        val cliToken = runCatching { ossToken }.getOrNull()
         return cliToken ?: System.getenv("OSS_INDEX_TOKEN")
     }
 

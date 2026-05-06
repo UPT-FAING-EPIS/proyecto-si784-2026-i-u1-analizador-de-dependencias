@@ -49,12 +49,18 @@ data class AnalyzeExecutionRequest(
     val treeMaxDepth: Int?,
     val treeExpandMode: TreeExpandMode,
     val timeoutSeconds: Long,
-    val useNvd: Boolean,
+    val vulnerabilitySourceMode: VulnerabilitySourceMode,
     val showCommandOutput: Boolean = false,
     val ossIndexToken: String?,
     val nvdApiKey: String?,
     val onPartialReport: ((DependencyReport) -> Unit)? = null
 )
+
+enum class VulnerabilitySourceMode {
+    AUTO,
+    OSS_ONLY,
+    NVD_ONLY
+}
 
 data class TuiLaunchConfig(
     val initialStatus: String,
@@ -79,7 +85,7 @@ private fun defaultAnalyzeExecutor(request: AnalyzeExecutionRequest): Dependency
         treeMaxDepth = request.treeMaxDepth,
         treeExpandMode = request.treeExpandMode,
         timeoutSeconds = request.timeoutSeconds,
-        useNvd = request.useNvd,
+        vulnerabilitySourceMode = request.vulnerabilitySourceMode,
         showCommandOutput = request.showCommandOutput,
         onPartialReport = request.onPartialReport
     )
@@ -115,11 +121,10 @@ abstract class BaseAnalyzeCommand(
     private val output: String? by option("-o", "--output", help = "Formato de salida (json a archivo)")
     private val noColor: Boolean by option("--no-color", help = "Desactiva el color en la consola").flag()
     private val tui: Boolean by option("--tui", help = "Activa la interfaz TUI interactiva").flag()
-    private val ossIndexToken: String? by option(
-        "-t",
-        "--oss-index-token",
-        help = "Token de autenticación para OSS Index API"
-    )
+    private val ossToken: String? by option("--oss-token", help = "Token de autenticación para OSS Index API")
+    private val nvdToken: String? by option("--nvd-token", help = "API key para NVD API")
+    private val oss: Boolean by option("--oss", help = "Fuerza uso de OSS Index (sin fallback)").flag()
+    private val nvd: Boolean by option("--nvd", help = "Fuerza uso de NVD (sin fallback)").flag()
     private val verbose: Boolean by option(
         "-v",
         "--verbose",
@@ -165,10 +170,6 @@ abstract class BaseAnalyzeCommand(
         "--timeout",
         help = "Timeout en segundos para descarga de dependencias (default: 1800s = 30 min)"
     ).int()
-    private val useNvd: Boolean by option(
-        "--use-nvd",
-        help = "Enriquece vulnerabilidades con datos de NVD (requiere NVD_API_KEY)"
-    ).flag()
     private val commandOutput: Boolean by option(
         "--command-output",
         help = "Muestra salida detallada de comandos Gradle/Maven durante el analisis dinamico"
@@ -182,8 +183,9 @@ abstract class BaseAnalyzeCommand(
         val targetPath = path ?: Path.of(".")
         val tuiRequested = forceTui || tui
         val startTime = System.currentTimeMillis()
-        val token = getTokenFromCliOrEnv()
-        val nvdApiKey = getNvdApiKeyFromEnv()
+        val token = getOssTokenFromCliOrEnv()
+        val nvdApiKey = getNvdTokenFromCliOrEnv()
+        val sourceMode = resolveVulnerabilitySourceMode(token, nvdApiKey) ?: return
 
         trackCommandAndFlagFeatures()
 
@@ -223,9 +225,8 @@ abstract class BaseAnalyzeCommand(
                 )
             }
 
-            if (!interactiveTui && useNvd && nvdApiKey == null) {
-                echo("Advertencia: --use-nvd requiere la variable de entorno NVD_API_KEY", err = true)
-                echo("Las solicitudes sin token están limitadas a ~50 req/hora", err = true)
+            if (!interactiveTui && sourceMode == VulnerabilitySourceMode.NVD_ONLY && nvdApiKey == null) {
+                echo("Advertencia: --nvd sin token/API key puede estar muy limitado (~50 req/hora)", err = true)
             }
 
             if (interactiveTui) {
@@ -241,7 +242,7 @@ abstract class BaseAnalyzeCommand(
                     treeMaxDepth = treeDepth,
                     treeExpandMode = expandMode,
                     timeoutSeconds = timeoutSeconds,
-                    useNvd = useNvd,
+                    vulnerabilitySourceMode = sourceMode,
                     showCommandOutput = commandOutput,
                     ossIndexToken = token,
                     nvdApiKey = nvdApiKey
@@ -279,7 +280,7 @@ abstract class BaseAnalyzeCommand(
                 treeMaxDepth = treeDepth,
                 treeExpandMode = expandMode,
                 timeoutSeconds = timeoutSeconds,
-                useNvd = useNvd,
+                vulnerabilitySourceMode = sourceMode,
                 showCommandOutput = commandOutput,
                 ossIndexToken = token,
                 nvdApiKey = nvdApiKey
@@ -347,7 +348,8 @@ abstract class BaseAnalyzeCommand(
         if (treeDepth != null) trackFeature("flag_tree_depth")
         if (treeExpand != null) trackFeature("flag_tree_expand")
         if (timeout != null) trackFeature("flag_timeout")
-        if (useNvd) trackFeature("flag_use_nvd")
+        if (oss) trackFeature("flag_oss")
+        if (nvd) trackFeature("flag_nvd")
         if (commandOutput) trackFeature("flag_command_output")
         if (failOnCritical) trackFeature("flag_fail_on_critical")
     }
@@ -521,12 +523,28 @@ abstract class BaseAnalyzeCommand(
             .any { it.severity == VulnerabilitySeverity.CRITICAL }
     }
 
-    private fun getTokenFromCliOrEnv(): String? {
-        return ossIndexToken ?: System.getenv("OSS_INDEX_TOKEN")
+    private fun getOssTokenFromCliOrEnv(): String? {
+        return ossToken ?: System.getenv("OSS_INDEX_TOKEN")
     }
 
-    private fun getNvdApiKeyFromEnv(): String? {
-        return System.getenv("NVD_API_KEY")
+    private fun getNvdTokenFromCliOrEnv(): String? {
+        return nvdToken ?: System.getenv("NVD_API_KEY")
+    }
+
+    private fun resolveVulnerabilitySourceMode(
+        ossTokenValue: String?,
+        nvdTokenValue: String?
+    ): VulnerabilitySourceMode? {
+        if (oss && nvd) {
+            echo("Error: --oss y --nvd son mutuamente excluyentes", err = true)
+            return null
+        }
+        return when {
+            oss -> VulnerabilitySourceMode.OSS_ONLY
+            nvd -> VulnerabilitySourceMode.NVD_ONLY
+            ossTokenValue.isNullOrBlank() && !nvdTokenValue.isNullOrBlank() -> VulnerabilitySourceMode.NVD_ONLY
+            else -> VulnerabilitySourceMode.AUTO
+        }
     }
 }
 

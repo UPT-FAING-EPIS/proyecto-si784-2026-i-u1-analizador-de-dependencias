@@ -42,8 +42,16 @@ Test especifico:
 ## Variables de entorno utiles
 
 - `OSS_INDEX_TOKEN`: recomendado para evitar limite bajo de OSS Index.
-- `NVD_API_KEY`: recomendado si pruebas `--use-nvd`.
+- `NVD_API_KEY`: recomendado para consultas NVD (modo auto o `--nvd`).
 - `DEPANALYZER_TRUSTED_CREDENTIAL_HOSTS`: hosts autorizados para enviar credenciales de repositorios.
+
+## Flags de fuentes de vulnerabilidades
+
+- `--oss-token`: token OSS Index por CLI (prioridad sobre `OSS_INDEX_TOKEN`).
+- `--nvd-token`: API key NVD por CLI (prioridad sobre `NVD_API_KEY`).
+- `--oss`: fuerza solo OSS Index (sin fallback).
+- `--nvd`: fuerza solo NVD (sin fallback).
+- Sin `--oss`/`--nvd`: modo auto con prioridad OSS y fallback a NVD si OSS falla.
 
 ## Estructura general
 

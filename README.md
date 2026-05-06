@@ -1,6 +1,7 @@
 # Analizador de Dependencias Java
 
-Herramienta CLI para analizar proyectos Java (Maven/Gradle), detectar dependencias desactualizadas y encontrar vulnerabilidades (CVE) con OSS Index y, opcionalmente, NIST NVD.
+Herramienta CLI para analizar proyectos Java (Maven/Gradle), detectar dependencias desactualizadas y encontrar
+vulnerabilidades (CVE) con OSS Index y, opcionalmente, NIST NVD.
 
 ## Caracteristicas
 
@@ -38,10 +39,10 @@ El analizador usa OSS Index para consultar vulnerabilidades.
 
 ### Limites de API
 
-| Configuracion | Limite aproximado | Recomendado para |
-|:--|:--|:--|
-| Sin token | ~120 req/hora | pruebas puntuales |
-| Con token | ~1,000+ req/hora | desarrollo, CI/CD, produccion |
+| Configuracion | Limite aproximado | Recomendado para              |
+|:--------------|:------------------|:------------------------------|
+| Sin token     | ~120 req/hora     | pruebas puntuales             |
+| Con token     | ~1,000+ req/hora  | desarrollo, CI/CD, produccion |
 
 ### Obtener token
 
@@ -65,18 +66,32 @@ Windows PowerShell:
 $env:OSS_INDEX_TOKEN="tu_token"
 ```
 
-Tambien puedes pasarlo por CLI con `--oss-index-token` (ver tablas de subcomandos).
+Tambien puedes pasarlo por CLI con `--oss-token` (ver tablas de subcomandos).
 
 ## Como obtener y configurar NIST NVD
 
-NVD es opcional y se activa con `--use-nvd`.
+NVD es opcional; puedes forzarlo con `--nvd`.
+
+Seleccion de fuente de vulnerabilidades:
+
+- Modo default (sin `--oss` ni `--nvd`): prioridad OSS Index. Si OSS no responde o falla autenticacion, hace fallback a
+  NVD.
+- `--oss`: fuerza solo OSS Index (sin fallback).
+- `--nvd`: fuerza solo NVD (sin fallback).
+- Si usas `--oss` o `--nvd` y falla la fuente (red/401/timeout), el comando reporta error y no cambia de fuente.
+
+Variables de entorno soportadas para vulnerabilidades:
+
+- `OSS_INDEX_TOKEN`: token de OSS Index.
+- `NVD_API_KEY`: API key de NVD.
+- Prioridad: si tambien pasas `--oss-token` o `--nvd-token`, la opcion CLI tiene prioridad sobre la variable de entorno.
 
 ### Limites de API
 
-| Configuracion | Limite aproximado | Recomendado para |
-|:--|:--|:--|
-| Sin API key | ~50 req/hora | pruebas muy puntuales |
-| Con API key | ~200+ req/hora | desarrollo, CI/CD, produccion |
+| Configuracion | Limite aproximado | Recomendado para              |
+|:--------------|:------------------|:------------------------------|
+| Sin API key   | ~50 req/hora      | pruebas muy puntuales         |
+| Con API key   | ~200+ req/hora    | desarrollo, CI/CD, produccion |
 
 ### Obtener API key
 
@@ -105,8 +120,8 @@ Para evitar exfiltracion accidental, las credenciales HTTP Basic solo se adjunta
 - Variable: `DEPANALYZER_TRUSTED_CREDENTIAL_HOSTS`
 - Formato: hosts separados por coma
 - Soporte:
-  - Host exacto: `nexus.example.com`
-  - Sufijo con subdominios: `.corp.example.com`
+    - Host exacto: `nexus.example.com`
+    - Sufijo con subdominios: `.corp.example.com`
 
 Si no configuras la variable, el comportamiento es fail-closed: no se envian credenciales.
 
@@ -133,37 +148,39 @@ Subcomandos disponibles: `analyze`, `tui`, `update`.
 
 ### Parametros globales
 
-| Parametro | Que hace | Subcomando | Default | Ejemplo |
-|:--|:--|:--|:--|:--|
-| `--no-telemetry` | Desactiva telemetria anonima de uso | todos | desactivado | `depanalyzer --no-telemetry analyze .` |
-| `-h`, `--help` | Muestra ayuda | todos | - | `depanalyzer --help` |
+| Parametro        | Que hace                            | Subcomando | Default     | Ejemplo                                |
+|:-----------------|:------------------------------------|:-----------|:------------|:---------------------------------------|
+| `--no-telemetry` | Desactiva telemetria anonima de uso | todos      | desactivado | `depanalyzer --no-telemetry analyze .` |
+| `-h`, `--help`   | Muestra ayuda                       | todos      | -           | `depanalyzer --help`                   |
 
 ### Subcomando `analyze`
 
 Analiza un proyecto y genera reporte de dependencias vulnerables/desactualizadas.
 
-| Parametro | Que hace | Subcomando | Default | Ejemplo |
-|:--|:--|:--|:--|:--|
-| `<path>` | Ruta del proyecto a analizar | `analyze` | `.` | `depanalyzer analyze ./mi-proyecto` |
-| `-t`, `--oss-index-token` | Token OSS Index por CLI (prioridad sobre entorno) | `analyze` | `OSS_INDEX_TOKEN` | `depanalyzer analyze . -t "token"` |
-| `--use-nvd` | Activa enriquecimiento con NVD | `analyze` | `false` | `depanalyzer analyze . --use-nvd` |
-| `-o`, `--output` | Exporta salida (`json`) | `analyze` | salida consola | `depanalyzer analyze . -o json` |
-| `--fail-on-critical` | Retorna exit code 1 si hay CVE CRITICAL | `analyze` | `false` | `depanalyzer analyze . --fail-on-critical` |
-| `--no-color` | Desactiva colores ANSI | `analyze` | `false` | `depanalyzer analyze . --no-color` |
-| `--tui` | Abre interfaz TUI desde `analyze` | `analyze` | `false` | `depanalyzer analyze . --tui` |
-| `-v`, `--verbose` | Muestra detalle extendido de vulnerabilidades | `analyze` | `false` | `depanalyzer analyze . --verbose` |
-| `--show-chains` | Muestra cadenas de dependencia vulnerables | `analyze` | `false` | `depanalyzer analyze . --show-chains` |
-| `--chain-detail` | Muestra detalles completos de cadenas (requiere `--show-chains`) | `analyze` | `false` | `depanalyzer analyze . --show-chains --chain-detail` |
-| `--offline` | Evita Maven `dependency:tree` (analisis estatico) | `analyze` | `false` | `depanalyzer analyze . --offline` |
-| `--dynamic` | Fuerza analisis dinamico (mas preciso, mas lento) | `analyze` | `false` | `depanalyzer analyze . --dynamic` |
-| `--disable-maven` | Desactiva ejecucion Maven en dinamico | `analyze` | `false` | `depanalyzer analyze . --disable-maven` |
-| `--disable-gradle` | Desactiva ejecucion Gradle en dinamico | `analyze` | `false` | `depanalyzer analyze . --disable-gradle` |
-| `--ascii` | Usa caracteres ASCII para el arbol | `analyze` | Unicode | `depanalyzer analyze . --ascii` |
-| `--tree-depth N` | Limita profundidad de arbol | `analyze` | sin limite | `depanalyzer analyze . --tree-depth 2` |
-| `--tree-expand MODE` | Modo de expansion: `collapsed`, `critical`, `high`, `medium`, `all` | `analyze` | `all` | `depanalyzer analyze . --tree-expand high` |
-| `--timeout N` | Timeout en segundos para descarga de dependencias | `analyze` | `1800` | `depanalyzer analyze . --timeout 900` |
-| `--command-output` | Muestra salida de comandos Maven/Gradle en dinamico | `analyze` | `false` | `depanalyzer analyze . --dynamic --command-output` |
-| `-h`, `--help` | Ayuda del subcomando | `analyze` | - | `depanalyzer analyze --help` |
+| Parametro            | Que hace                                                            | Subcomando | Default           | Ejemplo                                              |
+|:---------------------|:--------------------------------------------------------------------|:-----------|:------------------|:-----------------------------------------------------|
+| `<path>`             | Ruta del proyecto a analizar                                        | `analyze`  | `.`               | `depanalyzer analyze ./mi-proyecto`                  |
+| `--oss-token`        | Token OSS por CLI (prioridad sobre entorno)                         | `analyze`  | `OSS_INDEX_TOKEN` | `depanalyzer analyze . --oss-token "token"`          |
+| `--nvd-token`        | API key NVD por CLI (prioridad sobre entorno)                       | `analyze`  | `NVD_API_KEY`     | `depanalyzer analyze . --nvd-token "token"`          |
+| `--oss`              | Fuerza solo OSS (sin fallback)                                      | `analyze`  | `false`           | `depanalyzer analyze . --oss`                        |
+| `--nvd`              | Fuerza solo NVD (sin fallback)                                      | `analyze`  | `false`           | `depanalyzer analyze . --nvd`                        |
+| `-o`, `--output`     | Exporta salida (`json`)                                             | `analyze`  | salida consola    | `depanalyzer analyze . -o json`                      |
+| `--fail-on-critical` | Retorna exit code 1 si hay CVE CRITICAL                             | `analyze`  | `false`           | `depanalyzer analyze . --fail-on-critical`           |
+| `--no-color`         | Desactiva colores ANSI                                              | `analyze`  | `false`           | `depanalyzer analyze . --no-color`                   |
+| `--tui`              | Abre interfaz TUI desde `analyze`                                   | `analyze`  | `false`           | `depanalyzer analyze . --tui`                        |
+| `-v`, `--verbose`    | Muestra detalle extendido de vulnerabilidades                       | `analyze`  | `false`           | `depanalyzer analyze . --verbose`                    |
+| `--show-chains`      | Muestra cadenas de dependencia vulnerables                          | `analyze`  | `false`           | `depanalyzer analyze . --show-chains`                |
+| `--chain-detail`     | Muestra detalles completos de cadenas (requiere `--show-chains`)    | `analyze`  | `false`           | `depanalyzer analyze . --show-chains --chain-detail` |
+| `--offline`          | Evita Maven `dependency:tree` (analisis estatico)                   | `analyze`  | `false`           | `depanalyzer analyze . --offline`                    |
+| `--dynamic`          | Fuerza analisis dinamico (mas preciso, mas lento)                   | `analyze`  | `false`           | `depanalyzer analyze . --dynamic`                    |
+| `--disable-maven`    | Desactiva ejecucion Maven en dinamico                               | `analyze`  | `false`           | `depanalyzer analyze . --disable-maven`              |
+| `--disable-gradle`   | Desactiva ejecucion Gradle en dinamico                              | `analyze`  | `false`           | `depanalyzer analyze . --disable-gradle`             |
+| `--ascii`            | Usa caracteres ASCII para el arbol                                  | `analyze`  | Unicode           | `depanalyzer analyze . --ascii`                      |
+| `--tree-depth N`     | Limita profundidad de arbol                                         | `analyze`  | sin limite        | `depanalyzer analyze . --tree-depth 2`               |
+| `--tree-expand MODE` | Modo de expansion: `collapsed`, `critical`, `high`, `medium`, `all` | `analyze`  | `all`             | `depanalyzer analyze . --tree-expand high`           |
+| `--timeout N`        | Timeout en segundos para descarga de dependencias                   | `analyze`  | `1800`            | `depanalyzer analyze . --timeout 900`                |
+| `--command-output`   | Muestra salida de comandos Maven/Gradle en dinamico                 | `analyze`  | `false`           | `depanalyzer analyze . --dynamic --command-output`   |
+| `-h`, `--help`       | Ayuda del subcomando                                                | `analyze`  | -                 | `depanalyzer analyze --help`                         |
 
 Ejemplos:
 
@@ -177,8 +194,8 @@ depanalyzer analyze . --output json --no-color
 # Falla pipeline si hay criticos
 depanalyzer analyze . --fail-on-critical
 
-# Enriquecer con NVD
-depanalyzer analyze . --use-nvd
+# Forzar fuente NVD
+depanalyzer analyze . --nvd
 ```
 
 ### Subcomando `tui`
@@ -187,26 +204,28 @@ Abre la interfaz interactiva en pantalla completa.
 
 `tui` comparte las mismas opciones de analisis que `analyze` (excepto que ya entra directamente en modo interactivo).
 
-| Parametro | Que hace | Subcomando | Default | Ejemplo |
-|:--|:--|:--|:--|:--|
-| `<path>` | Ruta del proyecto a analizar | `tui` | `.` | `depanalyzer tui ./mi-proyecto` |
-| `-t`, `--oss-index-token` | Token OSS Index por CLI | `tui` | `OSS_INDEX_TOKEN` | `depanalyzer tui . -t "token"` |
-| `--use-nvd` | Activa enriquecimiento con NVD | `tui` | `false` | `depanalyzer tui . --use-nvd` |
-| `--no-color` | Desactiva color (si el entorno lo requiere) | `tui` | `false` | `depanalyzer tui . --no-color` |
-| `-v`, `--verbose` | Modo detallado | `tui` | `false` | `depanalyzer tui . --verbose` |
-| `--show-chains` | Muestra cadenas de dependencia vulnerables | `tui` | `false` | `depanalyzer tui . --show-chains` |
-| `--chain-detail` | Detalle completo de cadenas | `tui` | `false` | `depanalyzer tui . --show-chains --chain-detail` |
-| `--offline` | Analisis estatico | `tui` | `false` | `depanalyzer tui . --offline` |
-| `--dynamic` | Fuerza analisis dinamico | `tui` | `false` | `depanalyzer tui . --dynamic` |
-| `--disable-maven` | Desactiva Maven dinamico | `tui` | `false` | `depanalyzer tui . --disable-maven` |
-| `--disable-gradle` | Desactiva Gradle dinamico | `tui` | `false` | `depanalyzer tui . --disable-gradle` |
-| `--ascii` | Arbol en ASCII | `tui` | Unicode | `depanalyzer tui . --ascii` |
-| `--tree-depth N` | Limita profundidad de arbol | `tui` | sin limite | `depanalyzer tui . --tree-depth 3` |
-| `--tree-expand MODE` | Modo de expansion del arbol | `tui` | `all` | `depanalyzer tui . --tree-expand critical` |
-| `--timeout N` | Timeout en segundos | `tui` | `1800` | `depanalyzer tui . --timeout 1200` |
-| `--command-output` | Salida detallada Maven/Gradle | `tui` | `false` | `depanalyzer tui . --command-output` |
-| `--fail-on-critical` | Exit code 1 con CVE CRITICAL | `tui` | `false` | `depanalyzer tui . --fail-on-critical` |
-| `-h`, `--help` | Ayuda del subcomando | `tui` | - | `depanalyzer tui --help` |
+| Parametro            | Que hace                                    | Subcomando | Default           | Ejemplo                                          |
+|:---------------------|:--------------------------------------------|:-----------|:------------------|:-------------------------------------------------|
+| `<path>`             | Ruta del proyecto a analizar                | `tui`      | `.`               | `depanalyzer tui ./mi-proyecto`                  |
+| `--oss-token`        | Token OSS por CLI                           | `tui`      | `OSS_INDEX_TOKEN` | `depanalyzer tui . --oss-token "token"`          |
+| `--nvd-token`        | API key NVD por CLI                         | `tui`      | `NVD_API_KEY`     | `depanalyzer tui . --nvd-token "token"`          |
+| `--oss`              | Fuerza solo OSS (sin fallback)              | `tui`      | `false`           | `depanalyzer tui . --oss`                        |
+| `--nvd`              | Fuerza solo NVD (sin fallback)              | `tui`      | `false`           | `depanalyzer tui . --nvd`                        |
+| `--no-color`         | Desactiva color (si el entorno lo requiere) | `tui`      | `false`           | `depanalyzer tui . --no-color`                   |
+| `-v`, `--verbose`    | Modo detallado                              | `tui`      | `false`           | `depanalyzer tui . --verbose`                    |
+| `--show-chains`      | Muestra cadenas de dependencia vulnerables  | `tui`      | `false`           | `depanalyzer tui . --show-chains`                |
+| `--chain-detail`     | Detalle completo de cadenas                 | `tui`      | `false`           | `depanalyzer tui . --show-chains --chain-detail` |
+| `--offline`          | Analisis estatico                           | `tui`      | `false`           | `depanalyzer tui . --offline`                    |
+| `--dynamic`          | Fuerza analisis dinamico                    | `tui`      | `false`           | `depanalyzer tui . --dynamic`                    |
+| `--disable-maven`    | Desactiva Maven dinamico                    | `tui`      | `false`           | `depanalyzer tui . --disable-maven`              |
+| `--disable-gradle`   | Desactiva Gradle dinamico                   | `tui`      | `false`           | `depanalyzer tui . --disable-gradle`             |
+| `--ascii`            | Arbol en ASCII                              | `tui`      | Unicode           | `depanalyzer tui . --ascii`                      |
+| `--tree-depth N`     | Limita profundidad de arbol                 | `tui`      | sin limite        | `depanalyzer tui . --tree-depth 3`               |
+| `--tree-expand MODE` | Modo de expansion del arbol                 | `tui`      | `all`             | `depanalyzer tui . --tree-expand critical`       |
+| `--timeout N`        | Timeout en segundos                         | `tui`      | `1800`            | `depanalyzer tui . --timeout 1200`               |
+| `--command-output`   | Salida detallada Maven/Gradle               | `tui`      | `false`           | `depanalyzer tui . --command-output`             |
+| `--fail-on-critical` | Exit code 1 con CVE CRITICAL                | `tui`      | `false`           | `depanalyzer tui . --fail-on-critical`           |
+| `-h`, `--help`       | Ayuda del subcomando                        | `tui`      | -                 | `depanalyzer tui --help`                         |
 
 Ejemplos:
 
@@ -214,22 +233,22 @@ Ejemplos:
 # Abrir TUI
 depanalyzer tui .
 
-# TUI con NVD
-depanalyzer tui . --use-nvd
+# TUI forzando NVD
+depanalyzer tui . --nvd
 ```
 
 ### Subcomando `update`
 
 Propone y aplica actualizaciones en el archivo de build con confirmacion interactiva.
 
-| Parametro | Que hace | Subcomando | Default | Ejemplo |
-|:--|:--|:--|:--|:--|
-| `<path>` | Ruta del proyecto a actualizar | `update` | `.` | `depanalyzer update ./mi-proyecto` |
-| `-t`, `--oss-index-token` | Token OSS Index por CLI | `update` | `OSS_INDEX_TOKEN` | `depanalyzer update . -t "token"` |
-| `--dynamic` | Usa analisis dinamico para plan de update | `update` | `false` | `depanalyzer update . --dynamic` |
-| `--dry-run` | Simula cambios sin escribir archivos | `update` | `false` | `depanalyzer update . --dry-run` |
-| `--only-security` | Solo sugiere updates que corrigen CVEs | `update` | `false` | `depanalyzer update . --only-security` |
-| `-h`, `--help` | Ayuda del subcomando | `update` | - | `depanalyzer update --help` |
+| Parametro         | Que hace                                  | Subcomando | Default           | Ejemplo                                    |
+|:------------------|:------------------------------------------|:-----------|:------------------|:-------------------------------------------|
+| `<path>`          | Ruta del proyecto a actualizar            | `update`   | `.`               | `depanalyzer update ./mi-proyecto`         |
+| `--oss-token`     | Token OSS por CLI                         | `update`   | `OSS_INDEX_TOKEN` | `depanalyzer update . --oss-token "token"` |
+| `--dynamic`       | Usa analisis dinamico para plan de update | `update`   | `false`           | `depanalyzer update . --dynamic`           |
+| `--dry-run`       | Simula cambios sin escribir archivos      | `update`   | `false`           | `depanalyzer update . --dry-run`           |
+| `--only-security` | Solo sugiere updates que corrigen CVEs    | `update`   | `false`           | `depanalyzer update . --only-security`     |
+| `-h`, `--help`    | Ayuda del subcomando                      | `update`   | -                 | `depanalyzer update --help`                |
 
 Ejemplos:
 
@@ -247,8 +266,8 @@ depanalyzer update . --only-security
 # Analizar proyecto actual
 depanalyzer analyze .
 
-# Analizar con NVD y detalle
-depanalyzer analyze . --use-nvd --verbose
+# Analizar forzando NVD y detalle
+depanalyzer analyze . --nvd --verbose
 
 # Generar JSON para pipeline
 depanalyzer analyze . --output json --no-color
@@ -262,7 +281,7 @@ depanalyzer update . --dry-run
 
 ## Errores comunes
 
-- `--use-nvd` sin `NVD_API_KEY`: funciona, pero con limite muy bajo de solicitudes.
+- `--nvd` sin `NVD_API_KEY`: funciona, pero con limite muy bajo de solicitudes.
 - Sin `OSS_INDEX_TOKEN`: el analisis funciona, pero con cupo mas limitado.
 - `tui` en CI o sin TTY: puede hacer fallback a salida de consola tradicional.
 
