@@ -527,7 +527,7 @@ class AnalyzeTuiApp(
     private fun buildSummary(projectName: String, entries: List<TuiDependencyEntry>): TuiSummary {
         return TuiSummary(
             projectName = projectName,
-            outdatedCount = entries.count { it.outdatedCount > 0 || it.latestVersion != null },
+            outdatedCount = entries.count { it.latestVersion != null },
             vulnerableCount = entries.count { it.vulnerabilityCount > 0 },
             totalEntries = entries.size
         )

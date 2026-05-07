@@ -107,4 +107,43 @@ class TuiStateTest {
         assertEquals(TuiQuickFilter.DIRECT, backToDirect.activeFilter)
         assertFalse(backToDirect.filteredIndexes.contains(1))
     }
+
+    @Test
+    fun `outdated filter includes only direct updates`() {
+        val entries = listOf(
+            TuiDependencyEntry(
+                coordinate = "npm:direct-outdated",
+                currentVersion = "1.0.0",
+                latestVersion = "1.1.0",
+                outdatedCount = 1
+            ),
+            TuiDependencyEntry(
+                coordinate = "npm:transitive-outdated",
+                currentVersion = "2.0.0",
+                latestVersion = null,
+                outdatedCount = 3,
+                transitiveTreeLines = listOf(
+                    "+ npm:transitive-outdated:2.0.0",
+                    "  + npm:child:0.9.0 desactualizada -> 1.0.0"
+                )
+            )
+        )
+
+        val state = TuiState(
+            entries = entries,
+            summary = TuiSummary(
+                projectName = "test",
+                outdatedCount = 1,
+                vulnerableCount = 0,
+                totalEntries = entries.size
+            )
+        )
+
+        val outdatedFilterState = state
+            .cycleFilter() // CVE
+            .cycleFilter() // OUTDATED
+
+        assertEquals(TuiQuickFilter.OUTDATED, outdatedFilterState.activeFilter)
+        assertEquals(listOf(0), outdatedFilterState.filteredIndexes)
+    }
 }

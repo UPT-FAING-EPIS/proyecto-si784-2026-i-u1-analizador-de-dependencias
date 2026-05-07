@@ -94,4 +94,34 @@ class TuiLayoutTest {
         assertTrue(frame.any { it.contains("No hay dependencias") })
         assertTrue(frame.none { it.contains("Presiona q para salir") })
     }
+
+    @Test
+    fun `shows transitive status when only transitive dependencies are outdated`() {
+        val layout = TuiLayout(TuiTheme(enabled = false))
+        val state = TuiState(
+            entries = listOf(
+                TuiDependencyEntry(
+                    coordinate = "npm:eslint-plugin-react-hooks",
+                    currentVersion = "8.59.2",
+                    latestVersion = null,
+                    outdatedCount = 2,
+                    transitiveTreeLines = listOf(
+                        "+ npm:eslint-plugin-react-hooks:8.59.2",
+                        "  + npm:transitive-a:1.0.0 desactualizada -> 1.1.0"
+                    )
+                )
+            ),
+            summary = TuiSummary(
+                projectName = "sample",
+                outdatedCount = 0,
+                vulnerableCount = 0,
+                totalEntries = 1
+            )
+        )
+
+        val frame = layout.composeFrame(state)
+
+        assertTrue(frame.any { it.contains("Trans.") })
+        assertTrue(frame.none { it.contains("Desact.") })
+    }
 }

@@ -42,18 +42,22 @@ data class TuiTheme(
     }
 
     fun statusBadge(entry: TuiDependencyEntry, width: Int, isPending: Boolean = false): String {
+        val hasDirectOutdated = entry.latestVersion != null
+        val hasTransitiveOutdated = !hasDirectOutdated && entry.outdatedCount > 0
         val text = when {
             isPending -> "Pend."
-            entry.vulnerabilityCount > 0 && (entry.latestVersion != null || entry.outdatedCount > 0) -> "CVE tr."
+            entry.vulnerabilityCount > 0 && (hasDirectOutdated || hasTransitiveOutdated) -> "CVE tr."
             entry.vulnerabilityCount > 0 -> "CVE"
-            entry.latestVersion != null || entry.outdatedCount > 0 -> "Desact."
+            hasDirectOutdated -> "Desact."
+            hasTransitiveOutdated -> "Trans."
             else -> "OK"
         }.padEnd(width)
 
         return when {
             isPending -> wrap("\u001b[38;5;141m$BOLD", text)
             entry.vulnerabilityCount > 0 -> wrap("\u001b[38;5;205m$BOLD", text)
-            entry.latestVersion != null || entry.outdatedCount > 0 -> wrap("\u001b[38;5;220m$BOLD", text)
+            hasDirectOutdated -> wrap("\u001b[38;5;220m$BOLD", text)
+            hasTransitiveOutdated -> wrap("\u001b[38;5;117m$BOLD", text)
             else -> wrap("\u001b[38;5;120m$BOLD", text)
         }
     }

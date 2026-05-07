@@ -150,7 +150,7 @@ data class TuiState(
             TuiQuickFilter.DIRECT -> !entry.source.equals("transitive", ignoreCase = true)
             TuiQuickFilter.ALL -> true
             TuiQuickFilter.CVE -> entry.vulnerabilityCount > 0
-            TuiQuickFilter.OUTDATED -> entry.outdatedCount > 0 || entry.latestVersion != null
+            TuiQuickFilter.OUTDATED -> entry.latestVersion != null
             TuiQuickFilter.TRANSITIVE -> entry.transitiveTreeLines.any { it.startsWith("  +") }
         }
     }
