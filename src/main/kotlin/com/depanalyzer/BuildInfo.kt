@@ -1,5 +1,5 @@
 package com.depanalyzer
 
 object BuildInfo {
-    const val VERSION = "1.1.1"
+    const val VERSION = "2.0.0"
 }
