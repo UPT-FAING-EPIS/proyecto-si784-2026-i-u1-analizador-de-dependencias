@@ -97,6 +97,8 @@ class Update(
                 )
             )
             throw e
+        } finally {
+            TelemetryClient.flush(timeoutMs = 2500L)
         }
     }
 
@@ -193,7 +195,9 @@ class Update(
 
     private fun getTokenFromCliOrEnv(): String? {
         val cliToken = runCatching { ossToken }.getOrNull()
-        return cliToken ?: System.getenv("OSS_INDEX_TOKEN")
+        return (cliToken ?: System.getenv("OSS_INDEX_TOKEN"))
+            ?.trim()
+            ?.takeUnless { it.isBlank() }
     }
 
     private fun getDynamicFromCli(): Boolean {

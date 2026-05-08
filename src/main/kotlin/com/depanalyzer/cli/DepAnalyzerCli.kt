@@ -73,6 +73,21 @@ data class TuiLaunchConfig(
     val applyUpdates: ((List<UpdateSuggestion>) -> List<UpdateResult>)? = null
 )
 
+internal fun resolveVulnerabilitySourceModeFromFlags(
+    forceOss: Boolean,
+    forceNvd: Boolean
+): VulnerabilitySourceMode? {
+    if (forceOss && forceNvd) {
+        return null
+    }
+
+    return when {
+        forceOss -> VulnerabilitySourceMode.OSS_ONLY
+        forceNvd -> VulnerabilitySourceMode.NVD_ONLY
+        else -> VulnerabilitySourceMode.AUTO
+    }
+}
+
 private fun defaultAnalyzeExecutor(request: AnalyzeExecutionRequest): DependencyReport {
     val analyzer = ProjectAnalyzer(
         ossIndexClient = OssIndexClient(token = request.ossIndexToken),
@@ -188,7 +203,7 @@ abstract class BaseAnalyzeCommand(
         val startTime = System.currentTimeMillis()
         val token = getOssTokenFromCliOrEnv()
         val nvdApiKey = getNvdTokenFromCliOrEnv()
-        val sourceMode = resolveVulnerabilitySourceMode(token, nvdApiKey) ?: return
+        val sourceMode = resolveVulnerabilitySourceMode() ?: return
 
         trackCommandAndFlagFeatures()
 
@@ -325,6 +340,7 @@ abstract class BaseAnalyzeCommand(
                     durationMs = durationMs
                 )
             )
+            TelemetryClient.flush(timeoutMs = 2500L)
             ProgressTracker.setMuted(false)
             ProgressTracker.setListener(null)
         }
@@ -592,27 +608,23 @@ abstract class BaseAnalyzeCommand(
     }
 
     private fun getOssTokenFromCliOrEnv(): String? {
-        return ossToken ?: System.getenv("OSS_INDEX_TOKEN")
+        return (ossToken ?: System.getenv("OSS_INDEX_TOKEN"))
+            ?.trim()
+            ?.takeUnless { it.isBlank() }
     }
 
     private fun getNvdTokenFromCliOrEnv(): String? {
         return nvdToken ?: System.getenv("NVD_API_KEY")
     }
 
-    private fun resolveVulnerabilitySourceMode(
-        ossTokenValue: String?,
-        nvdTokenValue: String?
-    ): VulnerabilitySourceMode? {
-        if (oss && nvd) {
+    private fun resolveVulnerabilitySourceMode(): VulnerabilitySourceMode? {
+        val resolved = resolveVulnerabilitySourceModeFromFlags(forceOss = oss, forceNvd = nvd)
+        if (resolved == null) {
             echo("Error: --oss y --nvd son mutuamente excluyentes", err = true)
             return null
         }
-        return when {
-            oss -> VulnerabilitySourceMode.OSS_ONLY
-            nvd -> VulnerabilitySourceMode.NVD_ONLY
-            ossTokenValue.isNullOrBlank() && !nvdTokenValue.isNullOrBlank() -> VulnerabilitySourceMode.NVD_ONLY
-            else -> VulnerabilitySourceMode.AUTO
-        }
+
+        return resolved
     }
 }
 

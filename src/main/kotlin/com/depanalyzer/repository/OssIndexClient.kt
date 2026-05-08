@@ -1,7 +1,7 @@
 ﻿package com.depanalyzer.repository
 
-import com.depanalyzer.parser.ParsedDependency
 import com.depanalyzer.parser.Ecosystem
+import com.depanalyzer.parser.ParsedDependency
 import com.depanalyzer.report.AffectedDependency
 import com.depanalyzer.report.Vulnerability
 import okhttp3.HttpUrl
@@ -40,7 +40,10 @@ class OssIndexClient(
 
     private val jsonMapper = JsonMapper.builder().build()
 
-    fun getVulnerabilities(dependencies: List<ParsedDependency>): Map<String, List<Vulnerability>> {
+    fun getVulnerabilities(
+        dependencies: List<ParsedDependency>,
+        failOnError: Boolean = false
+    ): Map<String, List<Vulnerability>> {
         if (dependencies.isEmpty()) {
             return emptyMap()
         }
@@ -56,6 +59,8 @@ class OssIndexClient(
         if (componentCoordinates.isEmpty()) {
             return emptyMap()
         }
+
+        val errors = mutableListOf<Exception>()
 
         componentCoordinates.chunked(BATCH_SIZE).forEach { batch ->
             try {
@@ -77,9 +82,14 @@ class OssIndexClient(
                     }
                 }
             } catch (e: Exception) {
+                errors.add(e)
                 System.err.println("⚠️  OSS Index no disponible. Análisis de vulnerabilidades omitido.")
                 System.err.println("   Detalle: ${e.message}")
             }
+        }
+
+        if (failOnError && errors.isNotEmpty()) {
+            throw IllegalStateException("OSS Index request failed: ${errors.first().message}", errors.first())
         }
 
         return result
@@ -94,8 +104,9 @@ class OssIndexClient(
             .url(componentReportUrl)
             .post(requestBody)
 
-        if (token != null) {
-            requestBuilder.header("Authorization", "Bearer $token")
+        val authToken = token?.trim().takeUnless { it.isNullOrBlank() }
+        if (authToken != null) {
+            requestBuilder.header("Authorization", "Bearer $authToken")
         }
 
         val request = requestBuilder.build()

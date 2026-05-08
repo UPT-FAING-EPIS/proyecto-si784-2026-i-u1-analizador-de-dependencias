@@ -14,6 +14,46 @@ import kotlin.test.assertTrue
 class AnalyzeCommandTest {
 
     @Test
+    fun `source mode is auto when no source flag is passed`() {
+        val mode = resolveVulnerabilitySourceModeFromFlags(
+            forceOss = false,
+            forceNvd = false
+        )
+
+        assertEquals(VulnerabilitySourceMode.AUTO, mode)
+    }
+
+    @Test
+    fun `source mode is oss only when oss flag is passed`() {
+        val mode = resolveVulnerabilitySourceModeFromFlags(
+            forceOss = true,
+            forceNvd = false
+        )
+
+        assertEquals(VulnerabilitySourceMode.OSS_ONLY, mode)
+    }
+
+    @Test
+    fun `source mode is nvd only when nvd flag is passed`() {
+        val mode = resolveVulnerabilitySourceModeFromFlags(
+            forceOss = false,
+            forceNvd = true
+        )
+
+        assertEquals(VulnerabilitySourceMode.NVD_ONLY, mode)
+    }
+
+    @Test
+    fun `source mode is invalid when oss and nvd flags are both passed`() {
+        val mode = resolveVulnerabilitySourceModeFromFlags(
+            forceOss = true,
+            forceNvd = true
+        )
+
+        assertEquals(null, mode)
+    }
+
+    @Test
     fun `uses current directory when path argument is omitted`() {
         var capturedPath: Path? = null
         val outputFile = Files.createTempFile("analyze-default", ".json")

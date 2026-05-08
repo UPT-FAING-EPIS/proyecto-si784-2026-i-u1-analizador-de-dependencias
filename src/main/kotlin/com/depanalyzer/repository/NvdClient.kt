@@ -8,8 +8,8 @@ import com.depanalyzer.report.VulnerabilitySource
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import tools.jackson.databind.JsonNode
 import tools.jackson.databind.json.JsonMapper
-import tools.jackson.module.kotlin.KotlinModule
 import java.io.IOException
 import java.time.Instant
 import java.util.concurrent.TimeUnit
@@ -26,20 +26,27 @@ class NvdClient(
     private val baseUrl: String = "https://services.nvd.nist.gov/rest/json/cves/2.0",
     private val requestDelayMs: Long = if (System.getenv("NVD_API_KEY") != null) 100 else 600
 ) {
-    private val jsonMapper = JsonMapper.builder()
-        .addModule(KotlinModule.Builder().build())
-        .build()
+    private val jsonMapper = JsonMapper.builder().build()
 
     private var lastRequestTime = 0L
+    @Volatile
+    private var rateLimitBlockedUntilMs: Long = 0L
+    @Volatile
+    private var rateLimitWarningEmitted: Boolean = false
 
     fun getVulnerabilities(
         dependencies: List<ParsedDependency>,
         verbose: Boolean = false
     ): Map<String, List<Vulnerability>> {
         val result = mutableMapOf<String, List<Vulnerability>>()
+        var stopDueToRateLimit = false
 
         for (dep in dependencies) {
-            if (dep.version.isNullOrBlank() || dep.version.contains("\$")) {
+            if (stopDueToRateLimit) {
+                break
+            }
+
+            if (dep.version.isNullOrBlank() || dep.version.contains("$")) {
                 continue
             }
 
@@ -47,14 +54,23 @@ class NvdClient(
 
             applyRequestDelay()
             val cves = searchByCpe(cpeString)
+            if (isRateLimitBlocked()) {
+                stopDueToRateLimit = true
+            }
 
             if (cves.isEmpty() && verbose) {
                 System.err.println("⚠️  NVD: No CVEs found for CPE: $cpeString, trying keyword search...")
             }
 
             if (cves.isEmpty()) {
+                if (stopDueToRateLimit) {
+                    continue
+                }
                 applyRequestDelay()
                 val keywordCves = searchByKeyword("${dep.groupId}:${dep.artifactId}")
+                if (isRateLimitBlocked()) {
+                    stopDueToRateLimit = true
+                }
                 if (keywordCves.isNotEmpty() && verbose) {
                     System.err.println("✓ NVD: Found ${keywordCves.size} CVEs via keyword search for ${dep.artifactId}")
                 }
@@ -83,6 +99,11 @@ class NvdClient(
             }
         }
 
+        if (stopDueToRateLimit && !rateLimitWarningEmitted) {
+            System.err.println("⚠️  NVD: Rate limit alcanzado repetidamente. Se omiten consultas restantes en esta ejecución.")
+            rateLimitWarningEmitted = true
+        }
+
         return result
     }
 
@@ -90,6 +111,10 @@ class NvdClient(
         cpeString: String,
         retries: Int = 0
     ): List<NvdCve> {
+        if (isRateLimitBlocked()) {
+            return emptyList()
+        }
+
         return try {
             val url = baseUrl.toHttpUrl().newBuilder()
                 .addQueryParameter("cpeName", cpeString)
@@ -110,6 +135,10 @@ class NvdClient(
         limit: Int = 20,
         retries: Int = 0
     ): List<NvdCve> {
+        if (isRateLimitBlocked()) {
+            return emptyList()
+        }
+
         return try {
             val url = baseUrl.toHttpUrl().newBuilder()
                 .addQueryParameter("keywordSearch", keyword)
@@ -126,6 +155,10 @@ class NvdClient(
     }
 
     fun getCveById(cveId: String): NvdCve? {
+        if (isRateLimitBlocked()) {
+            return null
+        }
+
         return try {
             val url = baseUrl.toHttpUrl().newBuilder()
                 .addQueryParameter("cveId", cveId)
@@ -158,8 +191,9 @@ class NvdClient(
             client.newCall(request).execute().use { response ->
                 when {
                     response.isSuccessful -> {
+                        clearRateLimitBlock()
                         val body = response.body.string()
-                        jsonMapper.readValue(body, NvdCveResponse::class.java)
+                        parseNvdResponse(body)
                     }
 
                     response.code == 429 && retries < MAX_RETRIES -> {
@@ -170,6 +204,9 @@ class NvdClient(
                     }
 
                     else -> {
+                        if (response.code == 429) {
+                            blockForRateLimitWindow()
+                        }
                         System.err.println("⚠️  NVD: HTTP ${response.code} error: ${response.message}")
                         null
                     }
@@ -228,8 +265,243 @@ class NvdClient(
         lastRequestTime = System.currentTimeMillis()
     }
 
+    private fun isRateLimitBlocked(): Boolean {
+        return System.currentTimeMillis() < rateLimitBlockedUntilMs
+    }
+
+    private fun blockForRateLimitWindow() {
+        rateLimitBlockedUntilMs = System.currentTimeMillis() + RATE_LIMIT_COOLDOWN_MS
+    }
+
+    private fun clearRateLimitBlock() {
+        rateLimitBlockedUntilMs = 0L
+        rateLimitWarningEmitted = false
+    }
+
+    private fun parseNvdResponse(body: String): NvdCveResponse {
+        val root = jsonMapper.readTree(body)
+        return NvdCveResponse(
+            resultsPerPage = root.path("resultsPerPage").asInt(0),
+            startIndex = root.path("startIndex").asInt(0),
+            totalResults = root.path("totalResults").asInt(0),
+            vulnerabilities = root.path("vulnerabilities")
+                .takeIf { it.isArray }
+                ?.mapNotNull { vulnNode ->
+                    val cveNode =
+                        vulnNode.path("cve").takeIf { !it.isMissingNode && !it.isNull } ?: return@mapNotNull null
+                    parseNvdCve(cveNode)?.let { NvdVulnerability(it) }
+                }
+                .orEmpty(),
+            format = root.path("format").textOrNull(),
+            version = root.path("version").textOrNull(),
+            timestamp = root.path("timestamp").textOrNull()
+        )
+    }
+
+    private fun parseNvdCve(node: JsonNode): NvdCve? {
+        val id = node.path("id").textOrNull() ?: return null
+
+        return NvdCve(
+            id = id,
+            sourceIdentifier = node.path("sourceIdentifier").textOrNull(),
+            published = node.path("published").instantOrNull(),
+            lastModified = node.path("lastModified").instantOrNull(),
+            vulnStatus = node.path("vulnStatus").textOrNull(),
+            descriptions = node.path("descriptions")
+                .takeIf { it.isArray }
+                ?.mapNotNull { descNode ->
+                    val lang = descNode.path("lang").textOrNull() ?: return@mapNotNull null
+                    val value = descNode.path("value").textOrNull() ?: return@mapNotNull null
+                    CveDescription(lang = lang, value = value)
+                }
+                .orEmpty(),
+            metrics = parseMetrics(node.path("metrics")),
+            weaknesses = parseWeaknesses(node.path("weaknesses")),
+            configurations = parseConfigurations(node.path("configurations")),
+            references = parseReferences(node.path("references")),
+            vendorComments = parseVendorComments(node.path("vendorComments")),
+            cveTags = parseCveTags(node.path("cveTags"))
+        )
+    }
+
+    private fun parseMetrics(node: JsonNode): NvdMetrics? {
+        if (node.isMissingNode || node.isNull) return null
+
+        val cvssV3 = node.path("cvssMetricV3")
+            .takeIf { it.isArray }
+            ?.mapNotNull { metricNode ->
+                val cvssDataNode = metricNode.path("cvssData")
+                val version = cvssDataNode.path("version").textOrNull() ?: return@mapNotNull null
+                val vector = cvssDataNode.path("vectorString").textOrNull() ?: return@mapNotNull null
+                val baseScore = cvssDataNode.path("baseScore").doubleOrNull() ?: return@mapNotNull null
+                CvssMetricV3(
+                    source = metricNode.path("source").textOrNull(),
+                    type = metricNode.path("type").textOrNull(),
+                    cvssData = CvssDataV3(
+                        version = version,
+                        vectorString = vector,
+                        baseScore = baseScore,
+                        baseSeverity = cvssDataNode.path("baseSeverity").textOrNull(),
+                        attackVector = cvssDataNode.path("attackVector").textOrNull(),
+                        attackComplexity = cvssDataNode.path("attackComplexity").textOrNull(),
+                        privilegesRequired = cvssDataNode.path("privilegesRequired").textOrNull(),
+                        userInteraction = cvssDataNode.path("userInteraction").textOrNull(),
+                        scope = cvssDataNode.path("scope").textOrNull(),
+                        confidentialityImpact = cvssDataNode.path("confidentialityImpact").textOrNull(),
+                        integrityImpact = cvssDataNode.path("integrityImpact").textOrNull(),
+                        availabilityImpact = cvssDataNode.path("availabilityImpact").textOrNull()
+                    ),
+                    baseSeverity = metricNode.path("baseSeverity").textOrNull(),
+                    exploitabilityScore = metricNode.path("exploitabilityScore").doubleOrNull(),
+                    impactScore = metricNode.path("impactScore").doubleOrNull()
+                )
+            }
+
+        val cvssV2 = node.path("cvssMetricV2")
+            .takeIf { it.isArray }
+            ?.mapNotNull { metricNode ->
+                val cvssDataNode = metricNode.path("cvssData")
+                val version = cvssDataNode.path("version").textOrNull() ?: return@mapNotNull null
+                val vector = cvssDataNode.path("vectorString").textOrNull() ?: return@mapNotNull null
+                val baseScore = cvssDataNode.path("baseScore").doubleOrNull() ?: return@mapNotNull null
+                CvssMetricV2(
+                    source = metricNode.path("source").textOrNull(),
+                    type = metricNode.path("type").textOrNull(),
+                    cvssData = CvssDataV2(
+                        version = version,
+                        vectorString = vector,
+                        baseScore = baseScore,
+                        baseSeverity = cvssDataNode.path("baseSeverity").textOrNull()
+                    ),
+                    baseSeverity = metricNode.path("baseSeverity").textOrNull(),
+                    exploitabilityScore = metricNode.path("exploitabilityScore").doubleOrNull(),
+                    impactScore = metricNode.path("impactScore").doubleOrNull()
+                )
+            }
+
+        if (cvssV3.isNullOrEmpty() && cvssV2.isNullOrEmpty()) return null
+        return NvdMetrics(cvssMetricV3 = cvssV3, cvssMetricV2 = cvssV2)
+    }
+
+    private fun parseWeaknesses(node: JsonNode): List<CveWeakness>? {
+        if (!node.isArray) return null
+        return node.toList().map { weaknessNode ->
+            CveWeakness(
+                source = weaknessNode.path("source").textOrNull(),
+                type = weaknessNode.path("type").textOrNull(),
+                description = weaknessNode.path("description")
+                    .takeIf { it.isArray }
+                    ?.mapNotNull { descNode ->
+                        val lang = descNode.path("lang").textOrNull() ?: return@mapNotNull null
+                        val value = descNode.path("value").textOrNull() ?: return@mapNotNull null
+                        CweDescription(lang = lang, value = value)
+                    }
+                    .orEmpty()
+            )
+        }
+    }
+
+    private fun parseConfigurations(node: JsonNode): List<CveConfiguration>? {
+        if (!node.isArray) return null
+        return node.toList().map { cfgNode ->
+            CveConfiguration(
+                nodes = cfgNode.path("nodes")
+                    .takeIf { it.isArray }
+                    ?.toList()
+                    ?.map { parseCpeNode(it) }
+                    .orEmpty()
+            )
+        }
+    }
+
+    private fun parseCpeNode(node: JsonNode): CpeNode {
+        return CpeNode(
+            operator = node.path("operator").textOrNull(),
+            negate = node.path("negate").booleanOrNull(),
+            cpeMatch = node.path("cpeMatch")
+                .takeIf { it.isArray }
+                ?.mapNotNull { matchNode ->
+                    val vulnerable = matchNode.path("vulnerable").booleanOrNull() ?: return@mapNotNull null
+                    val criteria = matchNode.path("criteria").textOrNull() ?: return@mapNotNull null
+                    CpeMatch(
+                        vulnerable = vulnerable,
+                        criteria = criteria,
+                        matchCriteriaId = matchNode.path("matchCriteriaId").textOrNull(),
+                        versionStartIncluding = matchNode.path("versionStartIncluding").textOrNull(),
+                        versionEndIncluding = matchNode.path("versionEndIncluding").textOrNull(),
+                        versionStartExcluding = matchNode.path("versionStartExcluding").textOrNull(),
+                        versionEndExcluding = matchNode.path("versionEndExcluding").textOrNull()
+                    )
+                }
+                .orEmpty(),
+            children = node.path("children")
+                .takeIf { it.isArray }
+                ?.toList()
+                ?.map { parseCpeNode(it) }
+        )
+    }
+
+    private fun parseReferences(node: JsonNode): List<CveReference> {
+        if (!node.isArray) return emptyList()
+        return node.mapNotNull { refNode ->
+            val url = refNode.path("url").textOrNull() ?: return@mapNotNull null
+            CveReference(
+                url = url,
+                source = refNode.path("source").textOrNull(),
+                tags = refNode.path("tags")
+                    .takeIf { it.isArray }
+                    ?.mapNotNull { it.textOrNull() }
+            )
+        }
+    }
+
+    private fun parseVendorComments(node: JsonNode): List<VendorComment>? {
+        if (!node.isArray) return null
+        return node.toList().map {
+            VendorComment(
+                organization = it.path("organization").textOrNull(),
+                comment = it.path("comment").textOrNull(),
+                lastModified = it.path("lastModified").textOrNull()
+            )
+        }
+    }
+
+    private fun parseCveTags(node: JsonNode): List<CveTag>? {
+        if (!node.isArray) return null
+        return node.toList().map {
+            CveTag(
+                sourceIdentifier = it.path("sourceIdentifier").textOrNull(),
+                tags = it.path("tags")
+                    .takeIf { tagsNode -> tagsNode.isArray }
+                    ?.mapNotNull { tagNode -> tagNode.textOrNull() }
+                    .orEmpty()
+            )
+        }
+    }
+
+    private fun JsonNode.textOrNull(): String? {
+        if (isMissingNode || isNull) return null
+        return asString().takeIf { it.isNotBlank() && it != "null" }
+    }
+
+    private fun JsonNode.doubleOrNull(): Double? {
+        if (isMissingNode || isNull) return null
+        return if (isNumber) asDouble() else asString().toDoubleOrNull()
+    }
+
+    private fun JsonNode.booleanOrNull(): Boolean? {
+        if (isMissingNode || isNull) return null
+        return if (isBoolean) asBoolean() else asString().toBooleanStrictOrNull()
+    }
+
+    private fun JsonNode.instantOrNull(): Instant? {
+        val value = textOrNull() ?: return null
+        return runCatching { Instant.parse(value) }.getOrNull()
+    }
+
     companion object {
         private const val MAX_RETRIES = 2
         private const val INITIAL_BACKOFF_MS = 1000L
+        private const val RATE_LIMIT_COOLDOWN_MS = 60_000L
     }
 }

@@ -6,8 +6,8 @@ import com.depanalyzer.core.graph.ChainResolver
 import com.depanalyzer.core.graph.DependencyGraphBuilder
 import com.depanalyzer.parser.*
 import com.depanalyzer.parser.gradle.GradleIntegration
-import com.depanalyzer.parser.npm.NpmIntegration
 import com.depanalyzer.parser.maven.MavenIntegration
+import com.depanalyzer.parser.npm.NpmIntegration
 import com.depanalyzer.parser.python.PythonIntegration
 import com.depanalyzer.report.*
 import com.depanalyzer.repository.*
@@ -245,7 +245,7 @@ class ProjectAnalyzer(
         val vulnerabilityMap = when (vulnerabilitySourceMode) {
             VulnerabilitySourceMode.OSS_ONLY -> {
                 try {
-                    ossIndexClient.getVulnerabilities(dependencies)
+                    ossIndexClient.getVulnerabilities(dependencies, failOnError = true)
                 } catch (e: Exception) {
                     throw IllegalStateException("[OSS] no se pudo obtener vulnerabilidades: ${e.message}", e)
                 }
@@ -256,16 +256,18 @@ class ProjectAnalyzer(
                     ProgressTracker.logWarning("NVD solo aplica a dependencias Maven. CVE analysis skipped.")
                     emptyMap()
                 } else {
-                try {
-                    nvdClient.getVulnerabilities(mavenDependencies)
-                } catch (e: Exception) {
-                    throw IllegalStateException("[NVD] no se pudo obtener vulnerabilidades: ${e.message}", e)
-                }
+                    try {
+                        nvdClient.getVulnerabilities(mavenDependencies)
+                    } catch (e: Exception) {
+                        throw IllegalStateException("[NVD] no se pudo obtener vulnerabilidades: ${e.message}", e)
+                    }
                 }
             }
 
             VulnerabilitySourceMode.AUTO -> {
-                val ossVulns = runCatching { ossIndexClient.getVulnerabilities(dependencies) }.getOrNull()
+                val ossVulns = runCatching {
+                    ossIndexClient.getVulnerabilities(dependencies, failOnError = true)
+                }.getOrNull()
                 if (ossVulns != null) {
                     val nvdVulns = if (mavenDependencies.isNotEmpty()) {
                         runCatching {
