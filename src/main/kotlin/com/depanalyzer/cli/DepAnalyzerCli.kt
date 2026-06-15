@@ -137,6 +137,14 @@ abstract class BaseAnalyzeCommand(
         .path(mustExist = true, canBeFile = false)
         .optional()
     private val output: String? by option("-o", "--output", help = "Formato de salida (json a archivo)")
+    private val outputFile: String? by option(
+        "--output-file",
+        help = "Ruta del reporte JSON; use '-' para stdout"
+    )
+    private val quiet: Boolean by option(
+        "--quiet",
+        help = "Suprime progreso y mensajes informativos"
+    ).flag(default = false)
     private val noColor: Boolean by option("--no-color", help = "Desactiva el color en la consola").flag()
     private val tui: Boolean by option("--tui", help = "Activa la interfaz TUI interactiva").flag()
     private val ossToken: String? by option("--oss-token", help = "Token de autenticación para OSS Index API")
@@ -225,7 +233,7 @@ abstract class BaseAnalyzeCommand(
         val capabilities = terminalCapabilitiesDetector.detect(noColor = noColor)
         val interactiveTui = tuiRequested && capabilities.supportsInteractiveTui
 
-        ProgressTracker.setMuted(interactiveTui)
+        ProgressTracker.setMuted(interactiveTui || quiet || outputFile == "-")
 
         try {
             if (!interactiveTui) {
@@ -309,7 +317,7 @@ abstract class BaseAnalyzeCommand(
             } catch (e: Exception) {
                 sendErrorEvent(e)
                 echo("Error durante el análisis: ${e.message}", err = true)
-                return
+                throw ProgramResult(2)
             }
 
             if (!tuiRequested) {
@@ -356,6 +364,8 @@ abstract class BaseAnalyzeCommand(
 
         if (tui) trackFeature("flag_tui")
         if (output != null) trackFeature("flag_output_${output!!.lowercase()}")
+        if (outputFile != null) trackFeature("flag_output_file")
+        if (quiet) trackFeature("flag_quiet")
         if (verbose) trackFeature("flag_verbose")
         if (showChains) trackFeature("flag_show_chains")
         if (chainDetail) trackFeature("flag_chain_detail")
@@ -580,10 +590,19 @@ abstract class BaseAnalyzeCommand(
     private fun renderCliOutput(targetPath: Path, report: DependencyReport, capabilities: TerminalCapabilities) {
         if (output?.lowercase() == "json") {
             val generator = ReportGenerator()
-            val outputPath = jsonOutputPathProvider(targetPath)
             val json = if (verbose) generator.toJsonVerbose(report) else generator.toJson(report)
+            if (outputFile == "-") {
+                echo(json)
+                return
+            }
+
+            val outputPath = outputFile
+                ?.let(Path::of)
+                ?: jsonOutputPathProvider(targetPath)
             outputPath.writeText(json)
-            echo("Reporte JSON exportado a: $outputPath")
+            if (!quiet) {
+                echo("Reporte JSON exportado a: $outputPath")
+            }
             return
         }
 

@@ -341,7 +341,7 @@ class ProjectAnalyzer(
             rootNodes = rootNodes
         )
 
-        return DependencyReport(
+        val report = DependencyReport(
             projectName = projectDir.name,
             upToDate = upToDate,
             outdated = outdated,
@@ -349,9 +349,15 @@ class ProjectAnalyzer(
             transitiveVulnerable = transitiveVulnerable,
             vulnerabilityChains = chains,
             dependencyTree = dependencyTree
-        ).also { finalReport ->
-            emitPartial(onPartialReport, finalReport)
-        }
+        )
+        val finalReport = attachDirectSourceLocations(
+            report = report,
+            projectType = type,
+            projectDir = dirFile,
+            directDependencies = directDependencies
+        )
+        emitPartial(onPartialReport, finalReport)
+        return finalReport
     }
 
     private fun emitPartial(
@@ -475,5 +481,69 @@ class ProjectAnalyzer(
         }
 
         return result
+    }
+
+    private fun attachDirectSourceLocations(
+        report: DependencyReport,
+        projectType: ProjectType,
+        projectDir: File,
+        directDependencies: List<ParsedDependency>
+    ): DependencyReport {
+        val buildFile = when (projectType) {
+            ProjectType.MAVEN -> File(projectDir, "pom.xml")
+            ProjectType.GRADLE_GROOVY -> File(projectDir, "build.gradle")
+            ProjectType.GRADLE_KOTLIN -> File(projectDir, "build.gradle.kts")
+            ProjectType.NPM -> File(projectDir, "package.json")
+            ProjectType.PYTHON_POETRY -> File(projectDir, "pyproject.toml")
+            ProjectType.PYTHON_REQUIREMENTS -> File(projectDir, "requirements.txt")
+        }
+        if (!buildFile.isFile) return report
+
+        val lines = runCatching { buildFile.readLines() }.getOrElse { return report }
+        val locations = directDependencies.associateNotNull { dependency ->
+            val match = lines.withIndex().firstOrNull { (_, line) ->
+                line.contains(dependency.artifactId, ignoreCase = dependency.ecosystem != Ecosystem.MAVEN)
+            } ?: return@associateNotNull null
+            val start = match.value.indexOf(
+                string = dependency.artifactId,
+                ignoreCase = dependency.ecosystem != Ecosystem.MAVEN
+            )
+            if (start < 0) return@associateNotNull null
+
+            dependency.locationKey() to DependencySourceLocation(
+                file = buildFile.name,
+                line = match.index + 1,
+                startColumn = start + 1,
+                endColumn = start + dependency.artifactId.length + 1
+            )
+        }
+
+        return report.copy(
+            upToDate = report.upToDate.map { dependency ->
+                dependency.copy(sourceLocation = locations[dependency.locationKey()])
+            },
+            outdated = report.outdated.map { dependency ->
+                dependency.copy(sourceLocation = locations[dependency.locationKey()])
+            },
+            directVulnerable = report.directVulnerable.map { dependency ->
+                dependency.copy(sourceLocation = locations[dependency.locationKey()])
+            }
+        )
+    }
+
+    private fun ParsedDependency.locationKey(): String = "$ecosystem:$groupId:$artifactId"
+    private fun DependencyInfo.locationKey(): String = "$ecosystem:$groupId:$artifactId"
+    private fun OutdatedDependency.locationKey(): String = "$ecosystem:$groupId:$artifactId"
+    private fun VulnerableDependency.locationKey(): String = "$ecosystem:$groupId:$artifactId"
+
+    private inline fun <T, K, V> Iterable<T>.associateNotNull(
+        transform: (T) -> Pair<K, V>?
+    ): Map<K, V> {
+        val destination = LinkedHashMap<K, V>()
+        for (element in this) {
+            val pair = transform(element) ?: continue
+            destination[pair.first] = pair.second
+        }
+        return destination
     }
 }

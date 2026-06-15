@@ -196,6 +196,8 @@ Analiza un proyecto y genera reporte de dependencias vulnerables/desactualizadas
 | `--oss`              | Fuerza solo OSS (sin fallback)                                      | `analyze`  | `false`           | `depanalyzer analyze . --oss`                        |
 | `--nvd`              | Fuerza solo NVD (sin fallback)                                      | `analyze`  | `false`           | `depanalyzer analyze . --nvd`                        |
 | `-o`, `--output`     | Exporta salida (`json`)                                             | `analyze`  | salida consola    | `depanalyzer analyze . -o json`                      |
+| `--output-file PATH` | Ruta del JSON; use `-` para stdout                                  | `analyze`  | `dependency-report.json` | `depanalyzer analyze . -o json --output-file -` |
+| `--quiet`            | Suprime progreso y mensajes informativos                            | `analyze`  | `false`           | `depanalyzer analyze . -o json --output-file - --quiet` |
 | `--fail-on-critical` | Retorna exit code 1 si hay CVE CRITICAL                             | `analyze`  | `false`           | `depanalyzer analyze . --fail-on-critical`           |
 | `--no-color`         | Desactiva colores ANSI                                              | `analyze`  | `false`           | `depanalyzer analyze . --no-color`                   |
 | `--tui`              | Abre interfaz TUI desde `analyze`                                   | `analyze`  | `false`           | `depanalyzer analyze . --tui`                        |
@@ -279,6 +281,9 @@ Propone y aplica actualizaciones en el archivo de build con confirmacion interac
 | `--dynamic`       | Usa analisis dinamico para plan de update | `update`   | `false`           | `depanalyzer update . --dynamic`           |
 | `--dry-run`       | Simula cambios sin escribir archivos      | `update`   | `false`           | `depanalyzer update . --dry-run`           |
 | `--only-security` | Solo sugiere updates que corrigen CVEs    | `update`   | `false`           | `depanalyzer update . --only-security`     |
+| `--plan`          | Exporta sugerencias JSON sin modificar    | `update`   | `false`           | `depanalyzer update . --plan --output-file -` |
+| `--apply-id ID`   | Aplica una sugerencia concreta del plan   | `update`   | -                 | `depanalyzer update . --apply-id abc123`   |
+| `--output-file`   | Ruta del plan JSON; use `-` para stdout   | `update`   | `dependency-update-plan.json` | `depanalyzer update . --plan --output-file plan.json` |
 | `-h`, `--help`    | Ayuda del subcomando                      | `update`   | -                 | `depanalyzer update --help`                |
 
 Ejemplos:

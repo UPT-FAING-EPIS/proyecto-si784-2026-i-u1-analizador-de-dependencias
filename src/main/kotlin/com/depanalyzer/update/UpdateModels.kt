@@ -1,6 +1,8 @@
 package com.depanalyzer.update
 
 import com.depanalyzer.parser.Ecosystem
+import java.nio.charset.StandardCharsets
+import java.security.MessageDigest
 
 data class UpdateSuggestion(
     val groupId: String,
@@ -14,6 +16,24 @@ data class UpdateSuggestion(
 ) {
     val coordinate: String
         get() = "$groupId:$artifactId"
+
+    val suggestionId: String
+        get() {
+            val raw = listOf(
+                ecosystem.name,
+                groupId,
+                artifactId,
+                currentVersion,
+                newVersion,
+                reason.name,
+                targetType.name,
+                viaDirectCoordinate.orEmpty()
+            ).joinToString("|")
+            return MessageDigest.getInstance("SHA-256")
+                .digest(raw.toByteArray(StandardCharsets.UTF_8))
+                .take(8)
+                .joinToString("") { "%02x".format(it) }
+        }
 }
 
 enum class UpdateTargetType {

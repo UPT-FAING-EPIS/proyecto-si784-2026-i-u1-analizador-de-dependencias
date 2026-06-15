@@ -3,6 +3,8 @@ package com.depanalyzer.report
 import tools.jackson.databind.SerializationFeature
 import tools.jackson.databind.json.JsonMapper
 import tools.jackson.module.kotlin.KotlinModule
+import com.depanalyzer.parser.ProjectType
+import com.depanalyzer.update.UpdateSuggestion
 
 class ReportGenerator {
     private val jsonMapper = JsonMapper.builder()
@@ -16,6 +18,32 @@ class ReportGenerator {
 
     fun toJsonVerbose(report: DependencyReport): String {
         return jsonMapper.writeValueAsString(report)
+    }
+
+    fun toJsonUpdatePlan(
+        projectType: ProjectType,
+        buildFile: String,
+        suggestions: List<UpdateSuggestion>
+    ): String {
+        val payload = mapOf(
+            "schemaVersion" to "1.0",
+            "projectType" to projectType.name,
+            "buildFile" to buildFile,
+            "suggestions" to suggestions.map { suggestion ->
+                mapOf(
+                    "id" to suggestion.suggestionId,
+                    "groupId" to suggestion.groupId,
+                    "artifactId" to suggestion.artifactId,
+                    "currentVersion" to suggestion.currentVersion,
+                    "newVersion" to suggestion.newVersion,
+                    "reason" to suggestion.reason.name,
+                    "targetType" to suggestion.targetType.name,
+                    "viaDirectCoordinate" to suggestion.viaDirectCoordinate,
+                    "ecosystem" to suggestion.ecosystem.name
+                )
+            }
+        )
+        return jsonMapper.writeValueAsString(payload)
     }
 
     fun toText(report: DependencyReport): String {

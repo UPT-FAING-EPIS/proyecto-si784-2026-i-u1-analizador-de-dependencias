@@ -3,6 +3,7 @@ package com.depanalyzer.cli
 import com.depanalyzer.core.ProjectAnalyzer
 import com.depanalyzer.parser.ProjectType
 import com.depanalyzer.repository.OssIndexClient
+import com.depanalyzer.report.ReportGenerator
 import com.depanalyzer.telemetry.TelemetryClient
 import com.depanalyzer.telemetry.TelemetryEvent
 import com.depanalyzer.update.*
@@ -12,6 +13,7 @@ import com.github.ajalt.clikt.parameters.arguments.argument
 import com.github.ajalt.clikt.parameters.arguments.optional
 import com.github.ajalt.clikt.parameters.options.flag
 import com.github.ajalt.clikt.parameters.options.option
+import com.github.ajalt.clikt.parameters.options.multiple
 import com.github.ajalt.clikt.parameters.types.path
 import com.github.ajalt.mordant.animation.animation
 import com.github.ajalt.mordant.input.KeyboardEvent
@@ -27,6 +29,7 @@ import com.github.ajalt.mordant.terminal.Terminal
 import com.github.ajalt.mordant.widgets.SelectList
 import com.github.ajalt.mordant.widgets.Text
 import java.nio.file.Path
+import kotlin.io.path.writeText
 
 class Update(
     private val plannerFactory: (String?) -> UpdatePlanner = { token ->
@@ -64,6 +67,18 @@ class Update(
         "--only-security",
         help = "Solo sugiere actualizaciones que resuelven CVEs"
     ).flag(default = false)
+    private val planOnly: Boolean by option(
+        "--plan",
+        help = "Genera un plan JSON sin modificar archivos"
+    ).flag(default = false)
+    private val applyIds: List<String> by option(
+        "--apply-id",
+        help = "Aplica una sugerencia concreta del plan; puede repetirse"
+    ).multiple()
+    private val outputFile: String? by option(
+        "--output-file",
+        help = "Ruta del plan JSON; use '-' para stdout"
+    )
 
     override fun run() {
         trackCommandAndFlagFeatures()
@@ -75,6 +90,10 @@ class Update(
                 Terminal(ansiLevel = AnsiLevel.TRUECOLOR)
             }
             val targetPath = path ?: Path.of(".")
+            if (planOnly) {
+                writePlan(targetPath)
+                return
+            }
             val results = executeUpdate(
                 targetPath = targetPath,
                 terminal = terminal,
@@ -119,6 +138,12 @@ class Update(
         if (getOnlySecurityFromCli()) {
             TelemetryClient.send(TelemetryEvent(eventType = "feature_used", feature = "flag_only_security"))
         }
+        if (planOnly) {
+            TelemetryClient.send(TelemetryEvent(eventType = "feature_used", feature = "flag_plan"))
+        }
+        if (getApplyIdsFromCli().isNotEmpty()) {
+            TelemetryClient.send(TelemetryEvent(eventType = "feature_used", feature = "flag_apply_id"))
+        }
     }
 
     internal fun executeUpdate(
@@ -158,7 +183,18 @@ class Update(
         terminal.println(bold("Actualizaciones sugeridas para ${plan.buildFile.name}"))
         terminal.println(bold("Formato: dependencia | actual -> nueva | razón"))
 
-        val selectedSuggestions = selectionProvider(terminal, scopedSuggestions)
+        val requestedApplyIds = getApplyIdsFromCli()
+        val selectedSuggestions = if (requestedApplyIds.isNotEmpty()) {
+            val requestedIds = requestedApplyIds.toSet()
+            val selected = scopedSuggestions.filter { it.suggestionId in requestedIds }.toSet()
+            val missingIds = requestedIds - selected.map { it.suggestionId }.toSet()
+            require(missingIds.isEmpty()) {
+                "Sugerencias no encontradas o desactualizadas: ${missingIds.joinToString(", ")}"
+            }
+            selected
+        } else {
+            selectionProvider(terminal, scopedSuggestions)
+        }
         val results = mutableListOf<UpdateResult>()
 
         if (selectedSuggestions.isEmpty()) {
@@ -200,6 +236,32 @@ class Update(
             ?.takeUnless { it.isBlank() }
     }
 
+    private fun writePlan(targetPath: Path) {
+        require(getApplyIdsFromCli().isEmpty()) { "--plan y --apply-id no pueden usarse juntos" }
+        val plan = plannerFactory(getTokenFromCliOrEnv()).plan(
+            targetPath,
+            UpdateAnalysisOptions(dynamic = getDynamicFromCli())
+        )
+        val suggestions = if (getOnlySecurityFromCli()) {
+            plan.suggestions.filter { it.reason == UpdateReason.CVE }
+        } else {
+            plan.suggestions
+        }
+        val json = ReportGenerator().toJsonUpdatePlan(
+            projectType = plan.projectType,
+            buildFile = plan.buildFile.absolutePath,
+            suggestions = suggestions
+        )
+
+        if (outputFile == "-") {
+            echo(json)
+        } else {
+            val path = outputFile?.let(Path::of) ?: Path.of("dependency-update-plan.json")
+            path.writeText(json)
+            echo("Plan JSON exportado a: $path")
+        }
+    }
+
     private fun getDynamicFromCli(): Boolean {
         return runCatching { dynamic }.getOrDefault(false)
     }
@@ -210,6 +272,10 @@ class Update(
 
     private fun getOnlySecurityFromCli(): Boolean {
         return runCatching { onlySecurity }.getOrDefault(false)
+    }
+
+    private fun getApplyIdsFromCli(): List<String> {
+        return runCatching { applyIds }.getOrDefault(emptyList())
     }
 
     private fun renderSummary(terminal: Terminal, results: List<UpdateResult>, dryRun: Boolean) {

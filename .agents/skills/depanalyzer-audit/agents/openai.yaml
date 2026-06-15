@@ -1,0 +1,4 @@
+interface:
+  display_name: "DepAnalyzer Audit"
+  short_description: "Audita y actualiza dependencias vulnerables"
+  default_prompt: "Use $depanalyzer-audit para auditar las dependencias de este proyecto y priorizar sus riesgos."

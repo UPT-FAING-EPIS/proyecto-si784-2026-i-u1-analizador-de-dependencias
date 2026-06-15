@@ -103,7 +103,7 @@ object CommandFinder {
             }
 
             if (process.exitValue() == 0) {
-                process.inputStream.bufferedReader().readLine()
+                process.inputStream.bufferedReader().readText().trim().takeIf { it.isNotEmpty() }
             } else {
                 if (verbose) {
                     System.err.println("[CommandFinder] Command '$command --version' exited with code ${process.exitValue()}")
