@@ -324,3 +324,17 @@ depanalyzer update . --dry-run
 ## Desarrollo
 
 Si vas a contribuir o trabajar en el proyecto internamente, revisa `DEVELOP.md`.
+
+## Servidor MCP
+
+La integración en `integrations/mcp` permite que clientes y agentes compatibles con Model Context
+Protocol ejecuten auditorías, generen planes y apliquen únicamente actualizaciones aprobadas.
+
+```bash
+cd integrations/mcp
+npm install
+npm run build
+```
+
+La configuración y las herramientas disponibles se documentan en
+[`integrations/mcp/README.md`](integrations/mcp/README.md).
