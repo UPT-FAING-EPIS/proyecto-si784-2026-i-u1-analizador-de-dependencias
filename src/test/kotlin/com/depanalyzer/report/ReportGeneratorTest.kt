@@ -76,4 +76,34 @@ class ReportGeneratorTest {
         assertTrue(json.contains("\"projectName\" : \"TestProject\""))
         assertTrue(json.contains("\"upToDate\" : ["))
     }
+
+    @Test
+    fun `json report omits dependency tree derived getters`() {
+        val report = DependencyReport(
+            projectName = "TreeProject",
+            dependencyTree = listOf(
+                DependencyTreeNode(
+                    groupId = "org.example",
+                    artifactId = "direct",
+                    currentVersion = "1.0.0",
+                    latestVersion = "1.1.0",
+                    isDirectDependency = true,
+                    children = listOf(
+                        DependencyTreeNode(
+                            groupId = "org.example",
+                            artifactId = "transitive",
+                            currentVersion = "2.0.0"
+                        )
+                    )
+                )
+            )
+        )
+
+        val json = generator.toJson(report)
+
+        assertTrue(json.contains("\"dependencyTree\" : ["))
+        assertTrue(!json.contains("problematicDescendants"))
+        assertTrue(!json.contains("hasProblems"))
+        assertTrue(!json.contains("depth"))
+    }
 }
