@@ -4,6 +4,9 @@ plugins {
     kotlin("jvm") version "2.3.10"
     application
     id("org.graalvm.buildtools.native") version "1.0.0"
+    id("org.jetbrains.dokka") version "2.2.0"
+    id("info.solidsoft.pitest") version "1.19.0"
+    id("org.sonarqube") version "7.3.1.8318"
 }
 
 application {
@@ -57,6 +60,27 @@ compileKotlin.compilerOptions {
 
 tasks.withType<JavaCompile> {
     options.encoding = "UTF-8"
+}
+
+pitest {
+    targetClasses.set(listOf("com.depanalyzer.*"))
+    targetTests.set(listOf("com.depanalyzer.*"))
+    junit5PluginVersion.set("1.2.3")
+    outputFormats.set(listOf("HTML", "XML"))
+    timestampedReports.set(false)
+    threads.set(2)
+}
+
+sonar {
+    properties {
+        property("sonar.projectKey", "UPT-FAING-EPIS_proyecto-si784-2026-i-u1-analizador-de-dependencias")
+        property("sonar.organization", "upt-faing-epis")
+        property("sonar.host.url", "https://sonarcloud.io")
+        property("sonar.sources", "src/main/kotlin")
+        property("sonar.tests", "src/test/kotlin")
+        property("sonar.sourceEncoding", "UTF-8")
+        property("sonar.junit.reportPaths", "build/test-results/test")
+    }
 }
 
 val enableNativeImageAgent =

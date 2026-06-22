@@ -8,7 +8,7 @@
 
 **Escuela Profesional de Ingeniería de Sistemas**
 
-**Proyecto *Analizador de Dependencias Java***
+**Proyecto *Analizador de Dependencias Multi-Lenguaje***
 
 Curso: *Calidad y Pruebas de Software*
 
@@ -27,7 +27,7 @@ Integrantes:
 </center>
 
 
-Sistema *Analizador de Dependencias Java (JavaDepAnalyzer)*
+Sistema *Analizador de Dependencias Multi-Lenguaje (DepAnalyzer)*
 
 Informe de Factibilidad
 
@@ -60,7 +60,7 @@ Versión *1.1*
 
 ### 1.1. Nombre del proyecto
 
-**Analizador de Dependencias Java — JavaDepAnalyzer**
+**Analizador de Dependencias Multi-Lenguaje — DepAnalyzer**
 
 ### 1.2. Duración del proyecto
 
@@ -76,15 +76,15 @@ del núcleo funcional, las interfaces de distribución, la cobertura de pruebas 
 
 ### 1.3. Descripción
 
-JavaDepAnalyzer es una herramienta de código abierto desarrollada en **Kotlin** con **Gradle (Kotlin DSL)** cuyo
+DepAnalyzer es una herramienta de código abierto desarrollada en **Kotlin** con **Gradle (Kotlin DSL)** cuyo
 propósito es ayudar a los equipos de desarrollo Java a mantener sus proyectos seguros y actualizados. La herramienta
 analiza los archivos de configuración de dependencias (Maven `pom.xml`, Gradle Groovy DSL `build.gradle` y Gradle Kotlin
 DSL `build.gradle.kts`), detecta dependencias con versiones desactualizadas y vulnerabilidades de seguridad conocidas (
 CVEs), y ofrece al usuario la posibilidad de aplicar actualizaciones de forma controlada y confirmada.
 
 La importancia del proyecto radica en que la gestión manual de dependencias es una de las principales causas de deuda
-técnica y brechas de seguridad en proyectos Java. Según informes del sector, más del 80% de los proyectos open-source
-contienen al menos una dependencia con vulnerabilidad conocida. JavaDepAnalyzer cubre una necesidad real en el
+técnica y brechas de seguridad en proyectos Maven, Gradle, npm y Python. Según informes del sector, más del 80% de los proyectos open-source
+contienen al menos una dependencia con vulnerabilidad conocida. DepAnalyzer cubre una necesidad real en el
 ecosistema Java al integrar en una sola herramienta el análisis de versiones, la consulta de bases de datos de CVEs y la
 resolución del árbol de dependencias transitivas, algo que las herramientas existentes abordan de forma separada o
 incompleta.
@@ -96,7 +96,7 @@ Privada de Tacna.
 
 #### 1.4.1. Objetivo general
 
-Desarrollar una herramienta de análisis de dependencias para proyectos Java que detecte versiones desactualizadas y
+Desarrollar una herramienta de análisis de dependencias para proyectos Maven, Gradle, npm y Python que detecte versiones desactualizadas y
 vulnerabilidades de seguridad (CVEs) en dependencias directas y transitivas, y que permita aplicar actualizaciones de
 manera controlada e interactiva, distribuible como CLI, interfaz TUI y pipeline CI/CD.
 
@@ -143,7 +143,7 @@ manera controlada e interactiva, distribuible como CLI, interfaz TUI y pipeline 
 ### 3.1. Planteamiento del problema
 
 El ecosistema Java es uno de los más maduros y ampliamente utilizados en el desarrollo de software empresarial. Los
-proyectos Java modernos dependen de docenas o incluso cientos de bibliotecas de terceros gestionadas mediante
+proyectos modernos dependen de docenas o incluso cientos de bibliotecas de terceros gestionadas mediante
 herramientas como Apache Maven y Gradle. Esta dependencia masiva de código externo introduce dos problemas críticos que
 los equipos de desarrollo enfrentan de forma recurrente:
 
@@ -166,7 +166,7 @@ SaaS de pago para funcionalidades avanzadas. Ninguna de estas herramientas ofrec
 offline, respeto por los repositorios privados del proyecto, resolución de árbol transitivo con Gradle Tooling API y un
 modo interactivo de actualización en terminal.
 
-JavaDepAnalyzer busca cubrir este nicho: una herramienta de código abierto, ejecutable localmente, que respeta la
+DepAnalyzer busca cubrir este nicho: una herramienta de código abierto, ejecutable localmente, que respeta la
 configuración real del proyecto (repositorios privados incluidos) y que guía al desarrollador en el proceso de
 actualización de forma segura e interactiva.
 
@@ -285,7 +285,7 @@ El trabajo del equipo se realiza como parte de la formación académica y no con
 
 ### 4.3. Factibilidad Operativa
 
-**Beneficios para los usuarios finales.** JavaDepAnalyzer está orientado a desarrolladores Java individuales y equipos
+**Beneficios para los usuarios finales.** DepAnalyzer está orientado a desarrolladores individuales y equipos
 de desarrollo que gestionen proyectos con Maven o Gradle. La herramienta reduce significativamente el tiempo invertido
 en la revisión manual de dependencias y elimina la posibilidad de pasar por alto vulnerabilidades en dependencias
 transitivas, algo que no es humanamente viable de forma manual en proyectos con decenas de dependencias y árboles
@@ -369,7 +369,7 @@ factibilidad ambiental es ALTA.**
 
 #### 5.1.1. Beneficios del Proyecto
 
-Dado que JavaDepAnalyzer es una herramienta open-source de uso libre, el retorno de la inversión no se mide en ingresos
+Dado que DepAnalyzer es una herramienta open-source de uso libre, el retorno de la inversión no se mide en ingresos
 económicos directos, sino en beneficios tangibles e intangibles para sus usuarios y para la institución académica.
 
 **Beneficios tangibles:**
@@ -383,7 +383,7 @@ económicos directos, sino en beneficios tangibles e intangibles para sus usuari
 
 **Beneficios intangibles:**
 
-- Mejora de la postura de seguridad de los proyectos Java que adopten la herramienta.
+- Mejora de la postura de seguridad de los proyectos Maven, Gradle, npm y Python que adopten la herramienta.
 - Disponibilidad de una herramienta open-source en español para la comunidad latinoamericana de desarrollo Java.
 - Contribución académica y técnica de la Universidad Privada de Tacna al ecosistema open-source.
 - Desarrollo de competencias avanzadas del autor en Kotlin, arquitectura de herramientas CLI, integración de APIs de
@@ -456,7 +456,7 @@ B/C y VAN, ambos claramente favorables.
 
 ## 6. Conclusiones
 
-El análisis de factibilidad realizado sobre el proyecto **JavaDepAnalyzer — Analizador de Dependencias Java** arroja
+El análisis de factibilidad realizado sobre el proyecto **DepAnalyzer — Analizador de Dependencias Multi-Lenguaje** arroja
 resultados positivos en todas las dimensiones evaluadas:
 
 1. **Factibilidad Técnica:** El proyecto es técnicamente viable. Todo el stack tecnológico (Kotlin, Gradle Tooling API,
@@ -482,5 +482,5 @@ resultados positivos en todas las dimensiones evaluadas:
 6. **Análisis Financiero:** Los indicadores principales evaluados (B/C = 166.15 y VAN = S/. 9,493.00) superan
    ampliamente los umbrales de aceptación. La TIR se considera referencial debido a la inversión inicial mínima.
 
-**En conclusión, el proyecto JavaDepAnalyzer es viable y factible desde todas las perspectivas analizadas, y se
+**En conclusión, el proyecto DepAnalyzer es viable y factible desde todas las perspectivas analizadas, y se
 recomienda su ejecución.**

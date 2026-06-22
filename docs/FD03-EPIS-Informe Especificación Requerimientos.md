@@ -8,7 +8,7 @@
 
 **Escuela Profesional de Ingeniería de Sistemas**
 
-**Proyecto *Analizador de Dependencias Java***
+**Proyecto *Analizador de Dependencias Multi-Lenguaje***
 
 Curso: *Calidad y Pruebas de Software*
 
@@ -28,7 +28,7 @@ Integrantes:
 
 <div style="page-break-after: always; visibility: hidden">\pagebreak</div>
 
-Sistema *Analizador de Dependencias Java (JavaDepAnalyzer)*
+Sistema *Analizador de Dependencias Multi-Lenguaje (DepAnalyzer)*
 
 Informe de Especificación de Requerimientos
 
@@ -83,11 +83,11 @@ Versión *1.0*
 # 1. Introducción
 
 El presente Informe de Especificación de Requerimientos de Software (ERS) define, de manera verificable, las capacidades
-funcionales y no funcionales del sistema *JavaDepAnalyzer*. Este documento integra la visión académica del proyecto (
+funcionales y no funcionales del sistema *DepAnalyzer*. Este documento integra la visión académica del proyecto (
 FD02), la factibilidad evaluada (FD01) y el estado actual del código fuente para asegurar trazabilidad real entre
 requisitos, implementación y pruebas.
 
-El sistema está orientado a analizar proyectos Java (Maven y Gradle), identificar dependencias desactualizadas, detectar
+El sistema está orientado a analizar proyectos Maven, Gradle, npm y Python, identificar dependencias desactualizadas, detectar
 vulnerabilidades CVE y brindar mecanismos de actualización guiada en terminal, con confirmación explícita y respaldo de
 archivos de build.
 
@@ -115,20 +115,20 @@ flowchart TD
     FI --> EPIS[Escuela Profesional de Ingeniería de Sistemas]
     EPIS --> CURSO[Curso: Calidad y Pruebas de Software]
     CURSO --> DOC[Docente Evaluador]
-    CURSO --> EQ[Equipo del Proyecto JavaDepAnalyzer]
+    CURSO --> EQ[Equipo del Proyecto DepAnalyzer]
 ```
 
 # 3. Visionamiento de la Empresa
 
 ## 3.1 Descripcion del problema
 
-En proyectos Java modernos, la gestión manual de dependencias presenta dos fallas frecuentes: (a) atraso de versiones
+En proyectos modernos, la gestión manual de dependencias presenta dos fallas frecuentes: (a) atraso de versiones
 con deuda técnica acumulada y (b) exposición a CVEs en dependencias directas y transitivas. La revisión manual no escala
 para árboles de dependencias medianos o grandes y dificulta tomar decisiones oportunas de mantenimiento.
 
 ## 3.2 Objetivo de negocios
 
-Reducir tiempo de diagnóstico técnico y riesgo de seguridad en proyectos Java, proporcionando una herramienta CLI/TUI
+Reducir tiempo de diagnóstico técnico y riesgo de seguridad en proyectos Maven, Gradle, npm y Python, proporcionando una herramienta CLI/TUI
 que entregue evidencia rápida, trazable y accionable para mantenimiento de dependencias.
 
 ## 3.3 Objetivo de diseño
@@ -148,7 +148,7 @@ Diseñar una solución modular en Kotlin/JVM que:
 - Análisis de proyectos Maven (`pom.xml`), Gradle Groovy (`build.gradle`) y Gradle Kotlin (`build.gradle.kts`).
 - Comandos CLI `analyze`, `tui` y `update`.
 - Detección de desactualización por consulta de metadatos de repositorios.
-- Detección de CVEs con OSS Index y enriquecimiento opcional con NVD (`--use-nvd`).
+- Detección de CVEs con OSS Index, NVD o modo automático (`--oss`, `--nvd`).
 - Clasificación de vulnerabilidades directas/transitivas y renderizado en árbol.
 - Exportación de resultados en JSON (`--output json`).
 - Actualización guiada con confirmación interactiva y backup automático (`.bak`).
@@ -189,7 +189,7 @@ flowchart LR
 
 ## 4.2 Diagrama de procesos propuesto
 
-Proceso automatizado con JavaDepAnalyzer.
+Proceso automatizado con DepAnalyzer.
 
 ```mermaid
 flowchart LR
@@ -197,7 +197,7 @@ flowchart LR
     B --> C[Parsers extraen dependencias y repositorios]
     C --> D[ProjectAnalyzer consulta últimas versiones]
     D --> E[OssIndexClient detecta CVEs]
-    E --> F{--use-nvd?}
+    E --> F{--nvd?}
     F -- Sí --> G[NvdClient enriquece y fusiona CVEs]
     F -- No --> H[Continuar con OSS Index]
     G --> I[ReportGenerator y ConsoleRenderer]
@@ -244,7 +244,7 @@ flowchart LR
 | RF-03 | Parsear repositorios del proyecto                                                         | Alta      | `parser/GradleRepositoryParser.kt`, `parser/PomDependencyParser.kt`                                                 |
 | RF-04 | Consultar versión más reciente por repositorio                                            | Alta      | `repository/RepositoryClient.kt`, `core/ProjectAnalyzer.kt`                                                         |
 | RF-05 | Detectar CVEs usando OSS Index                                                            | Alta      | `repository/OssIndexClient.kt`, `core/ProjectAnalyzer.kt`                                                           |
-| RF-06 | Enriquecer CVEs con NVD (opcional)                                                        | Media     | `repository/NvdClient.kt`, `repository/VulnerabilityMerger.kt`, flag `--use-nvd`                                    |
+| RF-06 | Consultar CVEs con NVD                                                                     | Media     | `repository/NvdClient.kt`, `repository/VulnerabilityMerger.kt`, flag `--nvd`                                        |
 | RF-07 | Clasificar vulnerabilidades directas y transitivas                                        | Alta      | `core/ProjectAnalyzer.kt`, `report/DependencyReport.kt`                                                             |
 | RF-08 | Mostrar resultados en consola con árbol de dependencias                                   | Alta      | `report/ConsoleRenderer.kt`, `report/DependencyTreeBuilder.kt`                                                      |
 | RF-09 | Exportar resultados a JSON                                                                | Alta      | `report/ReportGenerator.kt`, opción `--output json`                                                                 |
@@ -262,7 +262,7 @@ flowchart LR
 | RN-02 | Antes de modificar `pom.xml` / `build.gradle` / `build.gradle.kts` se genera backup `.bak`          | `BuildFileBackup.ensureBackup`                 |
 | RN-03 | En caso de error de fuente externa (OSS Index/NVD), el análisis continúa con degradación controlada | Manejo de excepciones en `ProjectAnalyzer`     |
 | RN-04 | Si se usan credenciales de repositorio, solo se envían a destinos HTTPS confiables explícitos       | `InputSafety.isTrustedCredentialDestination`   |
-| RN-05 | En conflictos de token OSS Index, el token CLI tiene prioridad sobre variable de entorno            | `--oss-index-token` vs `OSS_INDEX_TOKEN`       |
+| RN-05 | En conflictos de token OSS Index, el token CLI tiene prioridad sobre variable de entorno            | `--oss-token` vs `OSS_INDEX_TOKEN`             |
 | RN-06 | El modo TUI prioriza cobertura dinámica de transitivas para análisis interactivo                    | Forzado de análisis dinámico en TUI            |
 
 # 6. Fase de Desarrollo
@@ -304,7 +304,7 @@ flowchart LR
     U --> UC4[Actualizar dependencias guiadas]
     U --> UC5[Ejecutar dry-run]
     U --> UC6[Fallar build por CVE crítico]
-    UC1 --> S[JavaDepAnalyzer]
+    UC1 --> S[DepAnalyzer]
     UC2 --> S
     UC3 --> S
     UC4 --> S
@@ -348,7 +348,7 @@ flowchart TD
     C --> D[Parser correspondiente extrae dependencias]
     D --> E[RepositoryClient busca versiones recientes]
     E --> F[OssIndexClient consulta CVEs]
-    F --> G{--use-nvd}
+    F --> G{--nvd}
     G -- Sí --> H[NvdClient y VulnerabilityMerger]
     G -- No --> I[Continuar]
     H --> J[ProjectAnalyzer clasifica hallazgos]
@@ -374,7 +374,7 @@ sequenceDiagram
     participant OI as OssIndexClient
     participant NVD as NvdClient
     participant RG as ReportGenerator/ConsoleRenderer
-    Usuario ->> CLI: analyze . --use-nvd --output json
+    Usuario ->> CLI: analyze . --nvd --output json
     CLI ->> PA: analyze(request)
     PA ->> PD: detect(projectPath)
     PD -->> PA: ProjectType
