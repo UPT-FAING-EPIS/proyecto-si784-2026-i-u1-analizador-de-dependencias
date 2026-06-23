@@ -8,7 +8,7 @@
 
 **Escuela Profesional de Ingeniería de Sistemas**
 
-**Informe Final**
+**Informe Final de Proyecto**
 
 **Sistema Analizador de Dependencias Multi-Lenguaje (DepAnalyzer)**
 
@@ -30,11 +30,18 @@ Integrantes:
 
 <div style="page-break-after: always; visibility: hidden">\pagebreak</div>
 
+Sistema *Analizador de Dependencias Multi-Lenguaje (DepAnalyzer)*
+
+Informe Final de Proyecto
+
+Versión *1.2*
+
 | CONTROL DE VERSIONES |           |              |               |            |                                      |
 |:--------------------:|:----------|:-------------|:--------------|:-----------|:-------------------------------------|
 |       Versión        | Hecha por | Revisada por | Aprobada por  | Fecha      | Motivo                               |
 |         1.0          | ACV, FYG  | ACV, FYG     | P. Cuadros Q. | 2026-06-22 | Versión final del informe de proyecto |
 |         1.1          | ACV, FYG  | ACV, FYG     | P. Cuadros Q. | 2026-06-23 | Ampliación técnica, metodológica y de evidencias |
+|         1.2          | ACV, FYG  | ACV, FYG     | P. Cuadros Q. | 2026-06-23 | Unificación del formato institucional |
 
 # ÍNDICE GENERAL
 

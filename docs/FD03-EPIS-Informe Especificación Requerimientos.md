@@ -8,7 +8,9 @@
 
 **Escuela Profesional de Ingeniería de Sistemas**
 
-**Proyecto *Analizador de Dependencias Multi-Lenguaje***
+**Informe de Especificación de Requerimientos**
+
+**Sistema Analizador de Dependencias Multi-Lenguaje (DepAnalyzer)**
 
 Curso: *Calidad y Pruebas de Software*
 
@@ -20,7 +22,7 @@ Integrantes:
 
 ***Yupa Gómez, Fátima Sofía (2023076618)***
 
-**Tacna – Perú**
+**Tacna - Perú**
 
 ***2026***
 
@@ -32,12 +34,13 @@ Sistema *Analizador de Dependencias Multi-Lenguaje (DepAnalyzer)*
 
 Informe de Especificación de Requerimientos
 
-Versión *1.0*
+Versión *1.1*
 
 | CONTROL DE VERSIONES |           |              |               |            |                 |
 |:--------------------:|:----------|:-------------|:--------------|:-----------|:----------------|
 |       Versión        | Hecha por | Revisada por | Aprobada por  | Fecha      | Motivo          |
 |         1.0          | ACV, FYG  | ACV, FYG     | P. Cuadros Q. | 2026-04-22 | Versión inicial |
+|         1.1          | ACV, FYG  | ACV, FYG     | P. Cuadros Q. | 2026-06-23 | Unificación del formato institucional |
 
 # ÍNDICE GENERAL
 

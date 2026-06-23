@@ -4,11 +4,13 @@
 
 **UNIVERSIDAD PRIVADA DE TACNA**
 
-**FACULTAD DE INGENIERIA**
+**FACULTAD DE INGENIERÍA**
 
-**Escuela Profesional de Ingenieria de Sistemas**
+**Escuela Profesional de Ingeniería de Sistemas**
 
-**Proyecto *Analizador de Dependencias Multi-Lenguaje***
+**Informe de Visión de Producto**
+
+**Sistema Analizador de Dependencias Multi-Lenguaje (DepAnalyzer)**
 
 Curso: *Calidad y Pruebas de Software*
 
@@ -18,31 +20,33 @@ Integrantes:
 
 ***Carbajal Vargas, Andre Alejandro (2023077287)***
 
-***Yupa Gomez, Fatima Sofia (2023076618)***
+***Yupa Gómez, Fátima Sofía (2023076618)***
 
-**Tacna - Peru**
+**Tacna - Perú**
 
 ***2026***
 
 </center>
+
 <div style="page-break-after: always; visibility: hidden">\pagebreak</div>
+
+Sistema *Analizador de Dependencias Multi-Lenguaje (DepAnalyzer)*
+
+Informe de Visión de Producto
+
+Versión *1.3*
 
 | CONTROL DE VERSIONES |           |              |               |            |                                           |
 |:--------------------:|:----------|:-------------|:--------------|:-----------|:------------------------------------------|
-|       Version        | Hecha por | Revisada por | Aprobada por  | Fecha      | Motivo                                    |
-|         1.0          | ACV, FYG  | ACV, FYG     | P. Cuadros Q. | 2026-04-04 | Primera version del documento             |
-|         1.1          | ACV, FYG  | ACV, FYG     | P. Cuadros Q. | 2026-04-04 | Ampliacion de detalle academico en FD02   |
+|       Versión        | Hecha por | Revisada por | Aprobada por  | Fecha      | Motivo                                    |
+|         1.0          | ACV, FYG  | ACV, FYG     | P. Cuadros Q. | 2026-04-04 | Primera versión del documento             |
+|         1.1          | ACV, FYG  | ACV, FYG     | P. Cuadros Q. | 2026-04-04 | Ampliación de detalle académico en FD02   |
 |         1.2          | ACV, FYG  | ACV, FYG     | P. Cuadros Q. | 2026-04-05 | Correcciones menores y ajustes de formato |
-
-**Sistema *Analizador de Dependencias Multi-Lenguaje (DepAnalyzer)***
-
-**Documento de Vision**
-
-**Version *1.2***
+|         1.3          | ACV, FYG  | ACV, FYG     | P. Cuadros Q. | 2026-06-23 | Unificación del formato institucional     |
 
 <div style="page-break-after: always; visibility: hidden">\pagebreak</div>
 
-**INDICE GENERAL**
+**ÍNDICE GENERAL**
 
 [1. Introduccion](#_Toc52661346)
 

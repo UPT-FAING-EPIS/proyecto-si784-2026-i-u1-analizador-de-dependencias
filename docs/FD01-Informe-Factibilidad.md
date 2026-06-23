@@ -8,7 +8,9 @@
 
 **Escuela Profesional de Ingeniería de Sistemas**
 
-**Proyecto *Analizador de Dependencias Multi-Lenguaje***
+**Informe de Factibilidad**
+
+**Sistema Analizador de Dependencias Multi-Lenguaje (DepAnalyzer)**
 
 Curso: *Calidad y Pruebas de Software*
 
@@ -20,24 +22,26 @@ Integrantes:
 
 ***Yupa Gómez, Fátima Sofía (2023076618)***
 
-**Tacna – Perú**
+**Tacna - Perú**
 
 ***2026***
 
 </center>
 
+<div style="page-break-after: always; visibility: hidden">\pagebreak</div>
 
 Sistema *Analizador de Dependencias Multi-Lenguaje (DepAnalyzer)*
 
 Informe de Factibilidad
 
-Versión *1.1*
+Versión *1.2*
 
-| CONTROL DE VERSIONES |           |              |              |            |                                                |
-|:--------------------:|:----------|:-------------|:-------------|:-----------|:-----------------------------------------------|
-|       Versión        | Hecha por | Revisada por | Aprobada por | Fecha      | Motivo                                         |
-|         1.0          | {Autor}   | {Revisor}    | {Aprobador}  | 2026-01-01 | Versión Original                               |
-|         1.1          | {Autor}   | {Revisor}    | {Aprobador}  | 2026-01-15 | Corrección de formato y actualización de datos |
+| CONTROL DE VERSIONES |           |              |               |            |                                                |
+|:--------------------:|:----------|:-------------|:--------------|:-----------|:-----------------------------------------------|
+|       Versión        | Hecha por | Revisada por | Aprobada por  | Fecha      | Motivo                                         |
+|         1.0          | ACV, FYG  | ACV, FYG     | P. Cuadros Q. | 2026-01-01 | Versión original                               |
+|         1.1          | ACV, FYG  | ACV, FYG     | P. Cuadros Q. | 2026-01-15 | Corrección de formato y actualización de datos |
+|         1.2          | ACV, FYG  | ACV, FYG     | P. Cuadros Q. | 2026-06-23 | Unificación del formato institucional          |
 
 # ÍNDICE GENERAL
 
@@ -53,6 +57,8 @@ Versión *1.1*
     - 4.6 [Factibilidad Ambiental](#46-factibilidad-ambiental)
 5. [Análisis Financiero](#5-análisis-financiero)
 6. [Conclusiones](#6-conclusiones)
+
+<div style="page-break-after: always; visibility: hidden">\pagebreak</div>
 
 # Informe de Factibilidad
 
