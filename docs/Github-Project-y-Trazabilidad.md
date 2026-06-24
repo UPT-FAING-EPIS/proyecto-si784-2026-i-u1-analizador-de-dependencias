@@ -34,3 +34,11 @@ gh project list --owner UPT-FAING-EPIS
 
 Esta configuración no sustituye la evidencia del tablero remoto; documenta el procedimiento y evita que nuevas tareas se
 creen sin la estructura exigida.
+
+## Secretos de automatización administrativa
+
+- `TERRAFORM_GITHUB_TOKEN`: token con administración del repositorio para aplicar el plan Terraform.
+- `WIKI_TOKEN`: token con escritura para sincronizar las páginas versionadas después de crear la primera página Wiki.
+
+Sin estos secretos, los workflows validan sus fuentes y registran la configuración pendiente sin marcar la entrega como
+fallida.

@@ -9,17 +9,20 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   publish:
     runs-on: ubuntu-latest
+    env:
+      WIKI_TOKEN: ${{ secrets.WIKI_TOKEN }}
     steps:
       - uses: actions/checkout@v4
 
       - name: Publish versioned Wiki pages
+        if: env.WIKI_TOKEN != ''
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ env.WIKI_TOKEN }}
         run: |
           set -euo pipefail
           remote="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.wiki.git"
@@ -34,3 +37,13 @@ jobs:
           git branch -M master
           git remote add origin "$remote"
           git push --force origin master
+
+      - name: Record pending Wiki configuration
+        if: env.WIKI_TOKEN == ''
+        run: |
+          {
+            echo "## Wiki"
+            echo ""
+            echo "The versioned Wiki sources are valid, but publication requires the WIKI_TOKEN secret."
+            echo "Create the first Wiki page once in GitHub, add a token with repository write access, and rerun this workflow."
+          } >> "$GITHUB_STEP_SUMMARY"

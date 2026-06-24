@@ -17,8 +17,9 @@ terraform plan
 terraform apply
 ```
 
-El token no debe guardarse en archivos `.tfvars`. El workflow utiliza `TERRAFORM_GITHUB_TOKEN` cuando está configurado
-y, en su defecto, intenta usar el token temporal de GitHub Actions.
+El token no debe guardarse en archivos `.tfvars`. Los pushes validan y generan el plan con el token temporal. La
+aplicación requiere ejecutar manualmente el workflow con `apply=true` y configurar `TERRAFORM_GITHUB_TOKEN` con permisos
+de administración del repositorio.
 
 ## Estado y repetibilidad
 

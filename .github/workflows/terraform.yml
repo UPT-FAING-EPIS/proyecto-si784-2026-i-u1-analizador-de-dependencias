@@ -36,6 +36,7 @@ jobs:
       TF_IN_AUTOMATION: "true"
       TF_INPUT: "false"
       TF_VAR_github_token: ${{ secrets.TERRAFORM_GITHUB_TOKEN || github.token }}
+      HAS_TERRAFORM_ADMIN_TOKEN: ${{ secrets.TERRAFORM_GITHUB_TOKEN != '' }}
 
     steps:
       - name: Checkout
@@ -81,5 +82,14 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Apply
-        if: github.ref == 'refs/heads/main' || inputs.apply == true
+        if: github.event_name == 'workflow_dispatch' && inputs.apply == true && env.HAS_TERRAFORM_ADMIN_TOKEN == 'true'
         run: terraform apply -auto-approve tfplan
+
+      - name: Record pending apply
+        if: github.event_name != 'workflow_dispatch' || inputs.apply != true || env.HAS_TERRAFORM_ADMIN_TOKEN != 'true'
+        run: |
+          {
+            echo ""
+            echo "Plan validated. Apply was skipped."
+            echo "To apply, configure TERRAFORM_GITHUB_TOKEN with repository administration access and run this workflow manually with apply=true."
+          } >> "$GITHUB_STEP_SUMMARY"
