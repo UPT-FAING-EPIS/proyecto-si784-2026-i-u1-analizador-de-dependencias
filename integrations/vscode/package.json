@@ -1,0 +1,175 @@
+{
+  "name": "depanalyzer-vscode",
+  "displayName": "DepAnalyzer Security",
+  "description": "Detecta dependencias vulnerables y desactualizadas desde Visual Studio Code.",
+  "version": "0.1.0",
+  "publisher": "DepAnalyzerUPT",
+  "license": "MIT",
+  "icon": "resources/depanalyzer.png",
+  "preview": false,
+  "pricing": "Free",
+  "homepage": "https://upt-faing-epis.github.io/proyecto-si784-2026-i-u1-analizador-de-dependencias/",
+  "bugs": {
+    "url": "https://github.com/UPT-FAING-EPIS/proyecto-si784-2026-i-u1-analizador-de-dependencias/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/UPT-FAING-EPIS/proyecto-si784-2026-i-u1-analizador-de-dependencias.git",
+    "directory": "integrations/vscode"
+  },
+  "engines": {
+    "vscode": "^1.90.0",
+    "node": ">=20"
+  },
+  "categories": [
+    "Linters",
+    "Security",
+    "Other"
+  ],
+  "keywords": [
+    "dependencies",
+    "dependency",
+    "security",
+    "vulnerability",
+    "cve",
+    "maven",
+    "gradle",
+    "npm",
+    "python",
+    "sca",
+    "depanalyzer"
+  ],
+  "galleryBanner": {
+    "color": "#1f2937",
+    "theme": "dark"
+  },
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "workspaceContains:pom.xml",
+    "workspaceContains:build.gradle",
+    "workspaceContains:build.gradle.kts",
+    "workspaceContains:package.json",
+    "workspaceContains:pyproject.toml",
+    "workspaceContains:requirements.txt",
+    "onCommand:depanalyzer.scanWorkspace",
+    "onCommand:depanalyzer.scanFile",
+    "onCommand:depanalyzer.clearDiagnostics"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "depanalyzer.scanWorkspace",
+        "title": "DepAnalyzer: Analizar Workspace",
+        "category": "DepAnalyzer"
+      },
+      {
+        "command": "depanalyzer.scanFile",
+        "title": "DepAnalyzer: Analizar Archivo Actual",
+        "category": "DepAnalyzer"
+      },
+      {
+        "command": "depanalyzer.clearDiagnostics",
+        "title": "DepAnalyzer: Limpiar Diagnosticos",
+        "category": "DepAnalyzer"
+      },
+      {
+        "command": "depanalyzer.applyUpdate",
+        "title": "DepAnalyzer: Aplicar Actualizacion",
+        "category": "DepAnalyzer",
+        "enablement": "false"
+      }
+    ],
+    "configuration": {
+      "title": "DepAnalyzer",
+      "properties": {
+        "depanalyzer.executablePath": {
+          "type": "string",
+          "default": "",
+          "description": "Ruta al ejecutable depanalyzer. Si queda vacia, se busca la distribucion local y luego PATH."
+        },
+        "depanalyzer.autoAnalyze": {
+          "type": "boolean",
+          "default": true,
+          "description": "Analiza automaticamente el workspace al activar la extension."
+        },
+        "depanalyzer.scanOnSave": {
+          "type": "boolean",
+          "default": true,
+          "description": "Reanaliza al guardar archivos de dependencias."
+        },
+        "depanalyzer.dynamic": {
+          "type": "boolean",
+          "default": false,
+          "description": "Usa analisis dinamico Maven/Gradle para dependencias transitivas."
+        },
+        "depanalyzer.provider": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "oss",
+            "nvd"
+          ],
+          "default": "auto",
+          "description": "Fuente de vulnerabilidades usada por el CLI."
+        },
+        "depanalyzer.timeoutSeconds": {
+          "type": "number",
+          "default": 900,
+          "minimum": 10,
+          "maximum": 3600,
+          "description": "Timeout del analisis en segundos."
+        }
+      }
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "depanalyzer",
+          "title": "DepAnalyzer",
+          "icon": "resources/depanalyzer.svg"
+        }
+      ]
+    },
+    "views": {
+      "depanalyzer": [
+        {
+          "id": "depanalyzer.findings",
+          "name": "Dependencias",
+          "contextualTitle": "DepAnalyzer"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "depanalyzer.scanWorkspace",
+          "when": "view == depanalyzer.findings",
+          "group": "navigation"
+        },
+        {
+          "command": "depanalyzer.clearDiagnostics",
+          "when": "view == depanalyzer.findings",
+          "group": "navigation"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run build",
+    "build": "tsc -p tsconfig.json",
+    "watch": "tsc -watch -p tsconfig.json",
+    "test": "npm run build && node --test dist/**/*.test.js",
+    "package": "vsce package",
+    "publish": "vsce publish"
+  },
+  "dependencies": {
+    "cross-spawn": "7.0.6"
+  },
+  "devDependencies": {
+    "@types/cross-spawn": "6.0.6",
+    "@types/node": "25.9.3",
+    "@types/vscode": "1.90.0",
+    "@vscode/vsce": "3.9.2",
+    "typescript": "6.0.3"
+  }
+}

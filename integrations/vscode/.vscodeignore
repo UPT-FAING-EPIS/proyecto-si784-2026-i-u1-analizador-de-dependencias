@@ -1,0 +1,11 @@
+.vscode/**
+.vscode-test/**
+src/**
+tsconfig.json
+dist/**/*.map
+dist/**/*.test.*
+**/*.test.js
+**/*.test.d.ts
+.gitignore
+node_modules/.cache/**
+depanalyzer-vscode-*.vsix
