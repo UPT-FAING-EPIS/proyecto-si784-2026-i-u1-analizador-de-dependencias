@@ -541,3 +541,18 @@ experiencia o extensiones quedan subordinadas al cumplimiento del nucleo funcion
 - https://kotlinlang.org/docs/home.html
 
 <div style="page-break-after: always; visibility: hidden">\pagebreak</div>
+
+# 10. Wiki y Roadmap de Versiones
+
+La fuente de la Wiki se mantiene en `wiki/` y se sincroniza mediante `wiki.yml`.
+
+| Versión | Estado | Objetivo | Entregables |
+|---------|--------|----------|-------------|
+| v1.x | Completada | Analizador Maven/Gradle | Parsers, versiones, OSS Index, árbol transitivo, CLI y JSON |
+| v2.x | Actual | Solución multi-ecosistema auditable | npm/Python, NVD, TUI, actualización, binarios, MCP y calidad automatizada |
+| v3.x | Planificada | Adopción y operación continua | GitHub Action, imagen OCI, SBOM, firma, caché e histórico |
+
+## 10.1 Criterios de cierre
+
+Cada versión requiere pruebas exitosas, cobertura mínima, reportes de seguridad, documentación actualizada, tag y
+release. La versión actual corresponde a la segunda línea principal; v3.x permanece como planificación.

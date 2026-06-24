@@ -617,3 +617,34 @@ Los reportes se publican en GitHub Pages para centralizar la evidencia solicitad
 Los reportes de Sonar y Snyk dependen de los secretos `SONAR_TOKEN` y `SNYK_TOKEN` configurados en GitHub. Si esos
 secretos no están disponibles, el workflow publica una página de estado indicando la configuración pendiente sin bloquear
 la publicación del resto de evidencias.
+
+# 6. Ingeniería Inversa e Infraestructura
+
+Los diagramas se contrastaron con `src/main/kotlin`, `build.gradle.kts`, `.github/workflows` e
+`infrastructure/terraform`; representan componentes implementados.
+
+```mermaid
+flowchart TD
+    REPO[Repositorio] --> CI[CI]
+    REPO --> QUALITY[Quality and Pages]
+    REPO --> RELEASE[Native Release]
+    REPO --> TF[Terraform]
+    QUALITY --> JACOCO[JaCoCo >= 70%]
+    QUALITY --> PIT[PIT]
+    QUALITY --> BDD[Cucumber]
+    QUALITY --> UI[Playwright + videos]
+    QUALITY --> STATIC[Sonar + Semgrep + Snyk]
+    QUALITY --> PAGES[GitHub Pages]
+    RELEASE --> BIN[Binarios multiplataforma]
+    TF --> ENV[Environment github-pages]
+    TF --> VARS[Variables de calidad]
+```
+
+| Vista | Fuente de ingeniería inversa |
+|-------|------------------------------|
+| Casos de uso | Comandos `analyze`, `tui`, `update` |
+| Secuencia | `ProjectAnalyzer`, parsers, OSS/NVD y reportes |
+| Clases | Data classes y servicios Kotlin |
+| Componentes | Paquetes de `com.depanalyzer` |
+| Despliegue | Actions, GraalVM, Releases, Pages y JReleaser |
+| Infraestructura | Recursos Terraform del proveedor GitHub |

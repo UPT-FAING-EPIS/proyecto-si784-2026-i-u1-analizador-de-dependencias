@@ -15,6 +15,8 @@ desactualizadas y vulnerabilidades CVE.
 
 - [Diccionario de Datos](./Diccionario-de-Datos.html)
 - [Estándar de Programación](./Estandar-de-Programacion.html)
+- [Manual de Usuario](./Manual-de-Usuario.html)
+- [GitHub Project y Trazabilidad](./Github-Project-y-Trazabilidad.html)
 
 ## Evidencias Publicadas
 

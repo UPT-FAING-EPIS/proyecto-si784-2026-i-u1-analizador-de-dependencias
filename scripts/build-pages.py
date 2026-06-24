@@ -81,6 +81,45 @@ def write_status_page(destination: Path, title: str, body: str) -> None:
     )
 
 
+def write_reports_index(destination: Path) -> None:
+    reports = [
+        ("coverage", "Cobertura JaCoCo", "Cobertura de líneas con umbral mínimo del 70%."),
+        ("mutation", "Mutación PIT", "Mutation score y mutantes detectados por la suite."),
+        ("bdd", "BDD Cucumber", "Escenarios ejecutables en formato Dado/Cuando/Entonces."),
+        ("interface", "Interfaz Playwright", "Reporte, trazas y videos de la interfaz documental."),
+        ("unit", "Pruebas unitarias", "Resultados JUnit de reglas y componentes aislados."),
+        ("integration", "Pruebas de integración", "Resultados de colaboración entre módulos."),
+        ("sonar", "Sonar", "Quality Gate y cobertura enviados a SonarCloud."),
+        ("semgrep", "Semgrep", "Análisis estático y reporte SARIF/JSON."),
+        ("snyk", "Snyk", "Análisis de vulnerabilidades de dependencias."),
+    ]
+    links = "\n".join(
+        f'<li><a href="{slug}/">{html.escape(title)}</a>: {html.escape(description)}</li>'
+        for slug, title, description in reports
+    )
+    destination.mkdir(parents=True, exist_ok=True)
+    (destination / "index.html").write_text(
+        f"""<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Reportes de pruebas y calidad</title>
+  <link rel="stylesheet" href="../assets/site.css">
+</head>
+<body>
+  <main class="page">
+    <h1>Reportes de pruebas y calidad</h1>
+    <p>Índice de evidencias generadas automáticamente para la misma revisión del código.</p>
+    <ul class="report-grid">{links}</ul>
+  </main>
+</body>
+</html>
+""",
+        encoding="utf-8",
+    )
+
+
 def main() -> int:
     if SITE_DIR.exists():
         shutil.rmtree(SITE_DIR)
@@ -101,6 +140,12 @@ th { background: #eef1f5; }
 pre { overflow: auto; background: #f0f2f5; padding: 12px; border-radius: 6px; }
 code { background: #f0f2f5; padding: 1px 4px; border-radius: 4px; }
 img { max-width: 100%; }
+.report-grid { display: grid; gap: 12px; padding-left: 20px; }
+.report-grid li { padding: 8px; }
+@media (max-width: 600px) {
+  .page { padding: 20px 14px 40px; overflow-wrap: anywhere; }
+  table { display: block; overflow-x: auto; }
+}
 """.strip(),
         encoding="utf-8",
     )
@@ -115,13 +160,18 @@ img { max-width: 100%; }
         render_markdown(source, destination)
 
     reports_root = SITE_DIR / "reports"
-    reports_root.mkdir(parents=True, exist_ok=True)
-    write_status_page(
-        reports_root,
-        "Reportes de pruebas y calidad",
-        "Índice de evidencias: sonar, semgrep, snyk, unit, integration, mutation, interface y bdd.",
-    )
-    for name in ["sonar", "semgrep", "snyk", "unit", "integration", "mutation", "interface", "bdd"]:
+    write_reports_index(reports_root)
+    for name in [
+        "coverage",
+        "sonar",
+        "semgrep",
+        "snyk",
+        "unit",
+        "integration",
+        "mutation",
+        "interface",
+        "bdd",
+    ]:
         target = reports_root / name
         if not (target / "index.html").exists():
             write_status_page(

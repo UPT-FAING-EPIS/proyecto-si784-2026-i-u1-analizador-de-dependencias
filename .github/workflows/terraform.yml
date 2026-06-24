@@ -1,0 +1,85 @@
+name: Terraform Infrastructure
+
+on:
+  pull_request:
+    paths:
+      - "infrastructure/terraform/**"
+      - ".github/workflows/terraform.yml"
+  push:
+    branches: [main]
+    paths:
+      - "infrastructure/terraform/**"
+      - ".github/workflows/terraform.yml"
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: Apply the infrastructure changes
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: terraform-infrastructure
+  cancel-in-progress: false
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infrastructure/terraform
+    env:
+      TF_IN_AUTOMATION: "true"
+      TF_INPUT: "false"
+      TF_VAR_github_token: ${{ secrets.TERRAFORM_GITHUB_TOKEN || github.token }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.12.2"
+
+      - name: Format
+        run: terraform fmt -check -recursive
+
+      - name: Initialize
+        run: terraform init
+
+      - name: Validate
+        run: terraform validate
+
+      - name: Import existing Pages environment
+        continue-on-error: true
+        run: terraform import github_repository_environment.pages "${{ github.event.repository.name }}:github-pages"
+
+      - name: Import existing public URL variable
+        continue-on-error: true
+        run: terraform import github_actions_variable.public_site_url "${{ github.event.repository.name }}:PUBLIC_SITE_URL"
+
+      - name: Import existing coverage variable
+        continue-on-error: true
+        run: terraform import github_actions_variable.minimum_coverage "${{ github.event.repository.name }}:MINIMUM_COVERAGE"
+
+      - name: Plan
+        run: terraform plan -out=tfplan
+
+      - name: Add cost estimate to summary
+        run: |
+          {
+            echo "## Terraform"
+            echo ""
+            echo "- Environment: github-pages"
+            echo "- Minimum coverage: 70%"
+            echo "- Estimated direct infrastructure cost: USD 0.00/month"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Apply
+        if: github.ref == 'refs/heads/main' || inputs.apply == true
+        run: terraform apply -auto-approve tfplan

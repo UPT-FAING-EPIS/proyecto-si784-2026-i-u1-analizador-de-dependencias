@@ -1,0 +1,11 @@
+.git
+.github
+.gradle
+.idea
+build
+docs
+integrations
+tests
+wiki
+*.docx
+*.pdf

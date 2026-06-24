@@ -1,8 +1,12 @@
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+import org.gradle.api.tasks.testing.Test
+import org.gradle.testing.jacoco.tasks.JacocoCoverageVerification
+import org.gradle.testing.jacoco.tasks.JacocoReport
 
 plugins {
     kotlin("jvm") version "2.3.10"
     application
+    jacoco
     id("org.graalvm.buildtools.native") version "1.0.0"
     id("org.jetbrains.dokka") version "2.2.0"
     id("info.solidsoft.pitest") version "1.19.0"
@@ -15,7 +19,11 @@ application {
 }
 
 group = "com.depanalyzer"
-version = "2.0.0"
+version = providers.gradleProperty("releaseVersion")
+    .orElse(providers.environmentVariable("PROJECT_VERSION"))
+    .orElse("2.1.0-SNAPSHOT")
+    .map { it.removePrefix("v") }
+    .get()
 
 repositories {
     mavenCentral()
@@ -25,6 +33,9 @@ dependencies {
     testImplementation(kotlin("test"))
     testImplementation("io.mockk:mockk:1.14.9")
     testImplementation("com.squareup.okhttp3:mockwebserver:5.3.2")
+    testImplementation("io.cucumber:cucumber-java:7.22.2")
+    testImplementation("io.cucumber:cucumber-junit-platform-engine:7.22.2")
+    testImplementation("org.junit.platform:junit-platform-suite:1.11.4")
     implementation("org.jetbrains.kotlin:kotlin-reflect:2.3.10")
 
     // Jackson 3.1.0 BOM
@@ -51,6 +62,124 @@ kotlin {
 
 tasks.test {
     useJUnitPlatform()
+    exclude("**/bdd/**")
+    finalizedBy(tasks.jacocoTestReport)
+}
+
+val unitTest by tasks.registering(Test::class) {
+    description = "Runs unit tests independently from integration and interface tests."
+    group = "verification"
+    testClassesDirs = sourceSets.test.get().output.classesDirs
+    classpath = sourceSets.test.get().runtimeClasspath
+    useJUnitPlatform()
+    exclude("**/*IntegrationTest*")
+    exclude("**/integration/**")
+    exclude("**/cli/**")
+    exclude("**/tui/**")
+    exclude("**/bdd/**")
+    reports.html.outputLocation.set(layout.buildDirectory.dir("reports/tests/unit"))
+    reports.junitXml.outputLocation.set(layout.buildDirectory.dir("test-results/unit"))
+}
+
+val integrationTest by tasks.registering(Test::class) {
+    description = "Runs integration tests."
+    group = "verification"
+    testClassesDirs = sourceSets.test.get().output.classesDirs
+    classpath = sourceSets.test.get().runtimeClasspath
+    useJUnitPlatform()
+    include("**/*IntegrationTest*")
+    include("**/integration/**")
+    reports.html.outputLocation.set(layout.buildDirectory.dir("reports/tests/integration"))
+    reports.junitXml.outputLocation.set(layout.buildDirectory.dir("test-results/integration"))
+}
+
+val interfaceTest by tasks.registering(Test::class) {
+    description = "Runs CLI and TUI interface tests."
+    group = "verification"
+    testClassesDirs = sourceSets.test.get().output.classesDirs
+    classpath = sourceSets.test.get().runtimeClasspath
+    useJUnitPlatform()
+    include("**/cli/**")
+    include("**/tui/**")
+    include("**/report/ConsoleRendererTest*")
+    exclude("**/*IntegrationTest*")
+    reports.html.outputLocation.set(layout.buildDirectory.dir("reports/tests/interface"))
+    reports.junitXml.outputLocation.set(layout.buildDirectory.dir("test-results/interface"))
+}
+
+val bddTest by tasks.registering(Test::class) {
+    description = "Runs executable Gherkin scenarios."
+    group = "verification"
+    testClassesDirs = sourceSets.test.get().output.classesDirs
+    classpath = sourceSets.test.get().runtimeClasspath
+    useJUnitPlatform()
+    include("**/bdd/RunCucumberTest*")
+    systemProperty("cucumber.plugin", "pretty,html:build/reports/cucumber/index.html,json:build/reports/cucumber/cucumber.json,junit:build/test-results/bdd/cucumber.xml")
+    systemProperty("cucumber.publish.quiet", "true")
+}
+
+tasks.register("qualityTest") {
+    description = "Runs all independently reported test suites."
+    group = "verification"
+    dependsOn(unitTest, integrationTest, interfaceTest, bddTest)
+}
+
+jacoco {
+    toolVersion = "0.8.13"
+}
+
+val coverageExclusions = listOf(
+    "**/tui/AnalyzeTuiApp*",
+    "**/cli/BaseAnalyzeCommand*",
+    "**/cli/Update\$Companion*",
+    "**/parser/gradle/GradleCommandExecutor*"
+)
+
+tasks.withType<JacocoReport>().configureEach {
+    classDirectories.setFrom(
+        files(classDirectories.files.map { directory ->
+            fileTree(directory) {
+                exclude(coverageExclusions)
+            }
+        })
+    )
+}
+
+tasks.withType<JacocoCoverageVerification>().configureEach {
+    classDirectories.setFrom(
+        files(classDirectories.files.map { directory ->
+            fileTree(directory) {
+                exclude(coverageExclusions)
+            }
+        })
+    )
+}
+
+tasks.jacocoTestReport {
+    dependsOn(tasks.test)
+    reports {
+        html.required.set(true)
+        xml.required.set(true)
+        csv.required.set(true)
+    }
+}
+
+tasks.jacocoTestCoverageVerification {
+    dependsOn(tasks.jacocoTestReport)
+    violationRules {
+        rule {
+            limit {
+                counter = "LINE"
+                value = "COVEREDRATIO"
+                minimum = "0.70".toBigDecimal()
+            }
+        }
+    }
+}
+
+tasks.check {
+    dependsOn(tasks.jacocoTestCoverageVerification)
+    dependsOn(unitTest, integrationTest, interfaceTest, bddTest)
 }
 
 val compileKotlin: KotlinCompile by tasks
@@ -62,13 +191,36 @@ tasks.withType<JavaCompile> {
     options.encoding = "UTF-8"
 }
 
+tasks.processResources {
+    filesMatching("version.properties") {
+        expand("version" to project.version)
+    }
+}
+
 pitest {
-    targetClasses.set(listOf("com.depanalyzer.*"))
-    targetTests.set(listOf("com.depanalyzer.*"))
+    targetClasses.set(
+        listOf(
+            "com.depanalyzer.core.graph.*",
+            "com.depanalyzer.report.DependencyTreeBuilder*",
+            "com.depanalyzer.report.DependencyTreeNode*",
+            "com.depanalyzer.report.Vulnerability*"
+        )
+    )
+    targetTests.set(
+        listOf(
+            "com.depanalyzer.core.graph.*Test",
+            "com.depanalyzer.report.DependencyTreeBuilderTest",
+            "com.depanalyzer.report.VulnerabilityTest"
+        )
+    )
     junit5PluginVersion.set("1.2.3")
     outputFormats.set(listOf("HTML", "XML"))
     timestampedReports.set(false)
     threads.set(2)
+    mutationThreshold.set(45)
+    coverageThreshold.set(65)
+    failWhenNoMutations.set(false)
+    timeoutFactor.set(2.0.toBigDecimal())
 }
 
 sonar {
@@ -80,6 +232,12 @@ sonar {
         property("sonar.tests", "src/test/kotlin")
         property("sonar.sourceEncoding", "UTF-8")
         property("sonar.junit.reportPaths", "build/test-results/test")
+        property("sonar.coverage.jacoco.xmlReportPaths", "build/reports/jacoco/test/jacocoTestReport.xml")
+        property(
+            "sonar.coverage.exclusions",
+            "**/tui/AnalyzeTuiApp.kt,**/cli/DepAnalyzerCli.kt,**/cli/UpdateCommand.kt,**/parser/gradle/GradleCommandExecutor.kt"
+        )
+        property("sonar.qualitygate.wait", "true")
     }
 }
 

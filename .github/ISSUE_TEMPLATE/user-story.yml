@@ -1,0 +1,61 @@
+name: Historia de usuario
+description: Tarea trazable con criterios y escenarios BDD
+title: "[HU] "
+body:
+  - type:markdown
+    attributes:
+      value: |
+        Complete todos los campos. Cada criterio necesita al menos dos escenarios Dado/Cuando/Entonces.
+  - type:textarea
+    id: story
+    attributes:
+      label: Historia de usuario
+      description: Use el formato Como... Quiero... Para...
+      placeholder: |
+        Como [rol]
+        Quiero [capacidad]
+        Para [beneficio]
+    validations:
+      required: true
+  - type:textarea
+    id: acceptance
+    attributes:
+      label: Criterios de aceptación
+      placeholder: |
+        - [ ] CA-01 ...
+        - [ ] CA-02 ...
+    validations:
+      required: true
+  - type:textarea
+    id: scenarios
+    attributes:
+      label: Escenarios de prueba
+      description: Incluya dos escenarios como mínimo por cada criterio.
+      placeholder: |
+        Escenario CA-01-A
+        Dado ...
+        Cuando ...
+        Entonces ...
+
+        Escenario CA-01-B
+        Dado ...
+        Cuando ...
+        Entonces ...
+    validations:
+      required: true
+  - type:textarea
+    id: evidence
+    attributes:
+      label: Evidencia y trazabilidad
+      description: Enlace pruebas, reportes, commits o documentación.
+    validations:
+      required: true
+  - type:dropdown
+    id: version
+    attributes:
+      label: Versión objetivo
+      options:
+        - v2.x
+        - v3.x
+    validations:
+      required: true

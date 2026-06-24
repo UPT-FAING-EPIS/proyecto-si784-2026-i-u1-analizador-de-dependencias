@@ -786,3 +786,19 @@ publicados en GitHub Pages.
 | TUI | Interfaz de usuario presentada dentro de una terminal. |
 | MCP | Protocolo para integrar herramientas y contexto con agentes compatibles. |
 | CI/CD | Automatización de integración, verificación y entrega de cambios. |
+
+# Anexo 08 Manual, Trazas y Videos de Interfaz
+
+El manual se mantiene en `docs/Manual-de-Usuario.md` y se publica junto con la documentación técnica Dokka. Playwright
+verifica portada, documentos FD, manual, índice de reportes y comportamiento responsive.
+
+| Evidencia | Generación | Publicación |
+|-----------|------------|-------------|
+| Reporte HTML | `build/reports/playwright` | `reports/interface/` |
+| Resultado JUnit | `build/test-results/interface/playwright.xml` | Artefacto Actions |
+| Videos WebM | `build/test-results/playwright` | `reports/interface/videos/` |
+| Capturas y trazas | `build/test-results/playwright` | Artefacto Actions |
+| API técnica | `build/dokka/html` | `api-docs/` |
+
+Así, el manual se relaciona con una navegación ejecutada y evidencia audiovisual producida por la misma revisión del
+código.

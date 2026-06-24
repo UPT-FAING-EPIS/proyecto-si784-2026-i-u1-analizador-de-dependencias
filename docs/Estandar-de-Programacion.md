@@ -234,6 +234,24 @@ exista una responsabilidad más precisa y nombres que repitan innecesariamente e
 
 ## 7.2 Cobertura por Cambio
 
+La cobertura de líneas del núcleo medible debe ser mayor o igual al 70% en JaCoCo y Sonar. Se excluyen únicamente
+fronteras que dependen directamente de una terminal interactiva o de procesos externos:
+
+- `AnalyzeTuiApp`, cuyo bucle depende de TTY y entrada nativa;
+- `BaseAnalyzeCommand`, adaptador de orquestación CLI cubierto por pruebas de interfaz;
+- el selector interactivo de `Update`, cubierto por pruebas de flujo y actualización;
+- `GradleCommandExecutor`, adaptador de procesos cubierto por pruebas de integración.
+
+Estas exclusiones no eliminan sus pruebas. Solo evitan que detalles dependientes de plataforma distorsionen la métrica
+estructural; sus resultados se reportan en las suites de interfaz e integración.
+
+La mutación se concentra en reglas puras y críticas: grafo de dependencias, construcción del árbol, clasificación de
+vulnerabilidades y validación de entradas. Los adaptadores de red, terminal y procesos se validan mediante integración y
+no se incluyen en PIT para mantener una ejecución reproducible dentro del límite del pipeline.
+
+La línea base de PIT exige mutation score mayor o igual al 45% y cobertura de las clases mutadas mayor o igual al 65%.
+Estos umbrales deben incrementarse cuando se añadan pruebas que eliminen mutantes supervivientes.
+
 | Cambio | Pruebas mínimas esperadas |
 |--------|---------------------------|
 | Nuevo parser | Archivo válido, sintaxis alternativa, campo ausente y entrada inválida |

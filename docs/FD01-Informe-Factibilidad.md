@@ -490,3 +490,30 @@ resultados positivos en todas las dimensiones evaluadas:
 
 **En conclusión, el proyecto DepAnalyzer es viable y factible desde todas las perspectivas analizadas, y se
 recomienda su ejecución.**
+
+# Anexo A. Infraestructura como Código y Costos con Terraform
+
+La infraestructura de publicación se define en `infrastructure/terraform`. Terraform administra el entorno
+`github-pages` y las variables `PUBLIC_SITE_URL` y `MINIMUM_COVERAGE`. El workflow `terraform.yml` ejecuta formato,
+validación, importación de recursos existentes, plan y aplicación.
+
+```mermaid
+flowchart LR
+    REPO[Repositorio GitHub] --> WF[GitHub Actions Terraform]
+    WF --> TF[Terraform GitHub Provider]
+    TF --> ENV[Environment github-pages]
+    TF --> VARS[Variables de calidad]
+    ENV --> SITE[Portal público de evidencias]
+```
+
+| Recurso Terraform | Cantidad | Costo mensual |
+|-------------------|:--------:|--------------:|
+| GitHub repository environment | 1 | USD 0.00 |
+| GitHub Actions variables | 2 | USD 0.00 |
+| GitHub Pages público | 1 | USD 0.00 |
+| **Total infraestructura Terraform** | | **USD 0.00** |
+
+Terraform no elimina los costos indirectos: internet y energía continúan representando S/. 65.00 en el periodo
+evaluado. El plan permite revisar cambios antes de aplicarlos, los tokens se inyectan mediante secretos y el estado no se
+publica en el repositorio. Si se incorporan runners privados o servicios con cómputo permanente, esta estimación deberá
+actualizarse.

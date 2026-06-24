@@ -1,5 +1,15 @@
 package com.depanalyzer
 
 object BuildInfo {
-    const val VERSION = "2.0.0"
+    val VERSION: String by lazy {
+        BuildInfo::class.java.getResourceAsStream("/version.properties")
+            ?.bufferedReader()
+            ?.useLines { lines ->
+                lines.firstOrNull { it.startsWith("version=") }
+                    ?.substringAfter("version=")
+                    ?.trim()
+            }
+            ?.takeIf { it.isNotEmpty() }
+            ?: "development"
+    }
 }

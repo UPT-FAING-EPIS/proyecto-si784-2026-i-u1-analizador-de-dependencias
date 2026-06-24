@@ -1,0 +1,4 @@
+github_owner     = "UPT-FAING-EPIS"
+repository_name  = "proyecto-si784-2026-i-u1-analizador-de-dependencias"
+public_site_url  = "https://upt-faing-epis.github.io/proyecto-si784-2026-i-u1-analizador-de-dependencias/"
+minimum_coverage = 70

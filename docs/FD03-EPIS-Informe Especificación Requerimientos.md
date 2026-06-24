@@ -505,3 +505,85 @@ classDiagram
 - https://maven.apache.org/
 - https://docs.gradle.org/
 - https://kotlinlang.org/docs/home.html
+
+# 11. Historias de Usuario, Criterios y Escenarios BDD
+
+Cada criterio dispone de dos escenarios como mínimo.
+
+## HU-01 Detectar el tipo de proyecto
+
+**Como** desarrollador, **quiero** identificar automáticamente el manifiesto **para** usar el parser correcto.
+
+**CA-01.1:** reconocer manifiestos soportados.
+
+- **Escenario 01:** **Dado** un directorio con `pom.xml`, **cuando** se detecta el proyecto, **entonces** el tipo es Maven.
+- **Escenario 02:** **Dado** un directorio con `package.json`, **cuando** se detecta el proyecto, **entonces** el tipo es npm.
+
+**CA-01.2:** rechazar entradas no soportadas.
+
+- **Escenario 03:** **Dado** un directorio vacío, **cuando** se detecta el proyecto, **entonces** se informa que no existe un manifiesto reconocido.
+- **Escenario 04:** **Dado** una ruta que es archivo, **cuando** se detecta el proyecto, **entonces** se rechaza por no ser directorio.
+
+## HU-02 Analizar vulnerabilidades
+
+**Como** responsable de mantenimiento, **quiero** conocer CVEs y severidad **para** priorizar correcciones.
+
+**CA-02.1:** clasificar vulnerabilidades según CVSS.
+
+- **Escenario 05:** **Dado** un CVSS 9.8, **cuando** se calcula la severidad, **entonces** es `CRITICAL`.
+- **Escenario 06:** **Dado** un CVSS 7.5, **cuando** se calcula la severidad, **entonces** es `HIGH`.
+
+**CA-02.2:** degradar de forma controlada ante fallos externos.
+
+- **Escenario 07:** **Dado** que OSS falla en modo automático, **cuando** NVD está disponible, **entonces** se utiliza el fallback.
+- **Escenario 08:** **Dado** que se forzó OSS, **cuando** la fuente falla, **entonces** se informa el error sin cambiar de fuente.
+
+## HU-03 Exportar evidencia
+
+**Como** ingeniero de CI, **quiero** consumir JSON estable **para** aplicar políticas automáticas.
+
+**CA-03.1:** emitir JSON válido y versionado.
+
+- **Escenario 09:** **Dado** un análisis terminado, **cuando** se solicita JSON, **entonces** contiene `schemaVersion`.
+- **Escenario 10:** **Dado** un reporte sin hallazgos, **cuando** se serializa, **entonces** sus listas siguen siendo parseables.
+
+**CA-03.2:** comunicar el resultado con códigos de salida.
+
+- **Escenario 11:** **Dado** un CVE crítico, **cuando** se usa `--fail-on-critical`, **entonces** el proceso retorna 1.
+- **Escenario 12:** **Dado** un error de análisis, **cuando** no puede generarse el reporte, **entonces** retorna 2.
+
+## HU-04 Actualizar dependencias con seguridad
+
+**Como** desarrollador, **quiero** confirmar las actualizaciones **para** evitar cambios destructivos.
+
+**CA-04.1:** no escribir sin aprobación.
+
+- **Escenario 13:** **Dado** un plan, **cuando** se ejecuta `--dry-run`, **entonces** el manifiesto no cambia.
+- **Escenario 14:** **Dado** una sugerencia rechazada, **cuando** termina el flujo, **entonces** se conserva la versión.
+
+**CA-04.2:** proteger el manifiesto.
+
+- **Escenario 15:** **Dado** una actualización aprobada, **cuando** se escribe, **entonces** existe un archivo `.bak`.
+- **Escenario 16:** **Dado** un resultado inválido, **cuando** se verifica antes de guardar, **entonces** se cancela la escritura.
+
+## HU-05 Consultar evidencias públicas
+
+**Como** docente evaluador, **quiero** navegar documentos y reportes **para** verificar la entrega.
+
+**CA-05.1:** publicar documentos y manual.
+
+- **Escenario 17:** **Dado** el portal, **cuando** se abre la portada, **entonces** aparecen FD01 a FD05.
+- **Escenario 18:** **Dado** la portada, **cuando** se selecciona el manual, **entonces** se abre el Manual de Usuario.
+
+**CA-05.2:** conservar evidencia audiovisual.
+
+- **Escenario 19:** **Dado** una ejecución Playwright, **cuando** termina un escenario, **entonces** se guarda video WebM.
+- **Escenario 20:** **Dado** una falla, **cuando** Playwright termina, **entonces** conserva captura y traza.
+
+| Historia | Escenarios | Evidencia |
+|----------|------------|-----------|
+| HU-01 | 01-04 | `ProjectDetectorTest` y Cucumber |
+| HU-02 | 05-08 | `VulnerabilityTest` y clientes OSS/NVD |
+| HU-03 | 09-12 | `AnalyzeCommandTest` y `ReportGeneratorTest` |
+| HU-04 | 13-16 | `UpdateCommandIntegrationTest` y updaters |
+| HU-05 | 17-20 | Playwright, reporte y videos |

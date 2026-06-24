@@ -1,0 +1,6 @@
+.gradle/
+build/
+integrations/mcp/node_modules/
+integrations/mcp/dist/
+tests/ui/node_modules/
+integrations/vscode/

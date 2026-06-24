@@ -1,8 +1,8 @@
-name: Pages Documentation and Reports
+name: Quality Reports and Pages
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -12,18 +12,17 @@ permissions:
   security-events: write
 
 concurrency:
-  group: pages
+  group: quality-pages
   cancel-in-progress: true
 
 jobs:
-  build:
+  gradle-quality:
     runs-on: ubuntu-latest
     env:
-      GRADLE_OPTS: "-Xmx2g -XX:MaxMetaspaceSize=512m"
+      GRADLE_OPTS: "-Xmx3g -XX:MaxMetaspaceSize=768m"
       OSS_INDEX_TOKEN: ${{ secrets.OSS_INDEX_TOKEN }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Set up JDK 25
         uses: actions/setup-java@v4
@@ -32,105 +31,270 @@ jobs:
           distribution: temurin
           cache: gradle
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - name: Prepare Gradle
+        run: chmod +x gradlew
+
+      - name: Run separately reported suites and coverage gate
+        run: ./gradlew unitTest integrationTest interfaceTest bddTest test jacocoTestReport jacocoTestCoverageVerification
+
+      - name: Run mutation tests
+        timeout-minutes: 25
+        run: ./gradlew pitest
+
+      - name: Generate Dokka documentation
+        run: ./gradlew dokkaGenerate
+
+      - name: Publish test summary
+        shell: bash
+        run: |
+          python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+
+          print("## Pruebas y cobertura")
+          total = failures = errors = skipped = 0
+          for path in Path("build/test-results").glob("**/*.xml"):
+              try:
+                  root = ET.parse(path).getroot()
+              except ET.ParseError:
+                  continue
+              suites = [root] if root.tag == "testsuite" else root.findall("testsuite")
+              for suite in suites:
+                  total += int(suite.attrib.get("tests", 0))
+                  failures += int(suite.attrib.get("failures", 0))
+                  errors += int(suite.attrib.get("errors", 0))
+                  skipped += int(suite.attrib.get("skipped", 0))
+          print(f"- Casos ejecutados: {total}")
+          print(f"- Fallos: {failures + errors}")
+          print(f"- Omitidos: {skipped}")
+
+          report = Path("build/reports/jacoco/test/jacocoTestReport.xml")
+          if report.exists():
+              root = ET.parse(report).getroot()
+              counter = next(c for c in root.findall("counter") if c.attrib["type"] == "LINE")
+              covered = int(counter.attrib["covered"])
+              missed = int(counter.attrib["missed"])
+              ratio = 100 * covered / (covered + missed)
+              print(f"- Cobertura de líneas: {ratio:.2f}%")
+              print("- Umbral requerido: 70%")
+          PY
+
+      - name: Upload Gradle quality reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: gradle-quality-reports
+          path: |
+            build/reports/tests
+            build/reports/cucumber
+            build/reports/jacoco
+            build/reports/pitest
+            build/dokka
+            build/test-results
+          if-no-files-found: error
+
+  mcp:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: integrations/mcp
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
         with:
           node-version: "24"
           cache: npm
           cache-dependency-path: integrations/mcp/package-lock.json
 
-      - name: Prepare Gradle
-        run: chmod +x gradlew
+      - run: npm ci
+      - run: npm test
+      - run: npm audit --omit=dev
 
-      - name: Run unit and integration tests
-        run: ./gradlew test
+  interface:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
-      - name: Build application
-        run: ./gradlew assemble
-
-      - name: Run mutation tests
-        continue-on-error: true
-        timeout-minutes: 10
-        run: ./gradlew pitest
-
-      - name: Generate Dokka documentation
-        continue-on-error: true
-        timeout-minutes: 10
-        run: ./gradlew dokkaGenerate
-
-      - name: Test MCP server
-        working-directory: integrations/mcp
-        run: npm ci && npm test
-
-      - name: Run Semgrep
-        continue-on-error: true
-        timeout-minutes: 10
-        uses: semgrep/semgrep-action@v1
+      - uses: actions/setup-node@v4
         with:
-          generateSarif: "1"
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: tests/ui/package-lock.json
 
-      - name: Run Snyk
-        if: ${{ secrets.SNYK_TOKEN != '' }}
-        continue-on-error: true
-        timeout-minutes: 10
-        uses: snyk/actions/gradle@master
-        env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+      - uses: actions/setup-python@v5
         with:
-          command: test
-          args: --json-file-output=build/reports/snyk/snyk.json
+          python-version: "3.13"
 
-      - name: Run Sonar
-        if: ${{ secrets.SONAR_TOKEN != '' }}
-        continue-on-error: true
-        timeout-minutes: 10
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: ./gradlew sonar
-
-      - name: Build Pages site
+      - name: Build evidence portal
         run: |
-          python -m pip install --user markdown
+          python -m pip install markdown
           python scripts/build-pages.py
 
-      - name: Collect generated reports
+      - name: Install Playwright
+        working-directory: tests/ui
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Run interface tests with video
+        working-directory: tests/ui
+        run: npm test
+
+      - name: Upload interface report and videos
+        uses: actions/upload-artifact@v4
+        with:
+          name: interface-evidence
+          path: |
+            build/reports/playwright
+            build/test-results/playwright
+            build/test-results/interface/playwright.xml
+          if-no-files-found: error
+
+  static-analysis:
+    runs-on: ubuntu-latest
+    env:
+      SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Run Semgrep
+        run: |
+          python -m pip install semgrep
+          mkdir -p build/reports/semgrep
+          semgrep scan --config auto --json-output=build/reports/semgrep/semgrep.json --sarif-output=build/reports/semgrep/semgrep.sarif .
+
+      - name: Upload Semgrep SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: build/reports/semgrep/semgrep.sarif
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: "25"
+          distribution: temurin
+          cache: gradle
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Run Snyk
+        if: env.SNYK_TOKEN != ''
+        continue-on-error: true
+        run: |
+          npm install --global snyk
+          mkdir -p build/reports/snyk
+          snyk test --all-projects --json-file-output=build/reports/snyk/snyk.json
+
+      - name: Record missing Snyk configuration
+        if: env.SNYK_TOKEN == ''
+        run: |
+          mkdir -p build/reports/snyk
+          printf '{"status":"not-configured","requiredSecret":"SNYK_TOKEN"}\n' > build/reports/snyk/snyk.json
+
+      - name: Upload static analysis reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: static-analysis-reports
+          path: |
+            build/reports/semgrep
+            build/reports/snyk
+          if-no-files-found: error
+
+  sonar:
+    runs-on: ubuntu-latest
+    env:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: "25"
+          distribution: temurin
+          cache: gradle
+
+      - name: Run SonarCloud quality gate
+        if: env.SONAR_TOKEN != ''
+        run: |
+          chmod +x gradlew
+          ./gradlew test jacocoTestReport sonar
+
+      - name: Create Sonar status evidence
         shell: bash
         run: |
-          mkdir -p build/pages-site/reports/unit
-          cp -R build/reports/tests/test/* build/pages-site/reports/unit/ || true
-          mkdir -p build/pages-site/reports/integration
-          cp -R build/reports/tests/test/* build/pages-site/reports/integration/ || true
-          mkdir -p build/pages-site/reports/interface
-          cp -R build/reports/tests/test/* build/pages-site/reports/interface/ || true
-          mkdir -p build/pages-site/reports/mutation
-          cp -R build/reports/pitest/* build/pages-site/reports/mutation/ || true
-          mkdir -p build/pages-site/reports/snyk
-          cp -R build/reports/snyk/* build/pages-site/reports/snyk/ || true
-          mkdir -p build/pages-site/api-docs
-          cp -R build/dokka/html/* build/pages-site/api-docs/ || true
-          cp -R build/dokka/htmlPartial/* build/pages-site/api-docs/ || true
-          cp -R build/dokka/dokkaGeneratePublicationHtml/* build/pages-site/api-docs/ || true
-          cp -R build/dokka/dokkaGenerateModuleHtml/* build/pages-site/api-docs/ || true
-          mkdir -p build/pages-site/reports/bdd
-          cat > build/pages-site/reports/bdd/index.html <<'HTML'
-          <!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Pruebas BDD</title><link rel="stylesheet" href="../../assets/site.css"></head><body><main class="page"><h1>Pruebas BDD</h1><p>Escenarios BDD documentados para flujos principales de CLI: analizar proyecto, exportar JSON y simular actualización.</p></main></body></html>
-          HTML
+          mkdir -p build/reports/sonar
+          if [ -n "$SONAR_TOKEN" ]; then
+            printf '{"status":"submitted","url":"https://sonarcloud.io/project/overview?id=UPT-FAING-EPIS_proyecto-si784-2026-i-u1-analizador-de-dependencias"}\n' > build/reports/sonar/status.json
+          else
+            printf '{"status":"not-configured","requiredSecret":"SONAR_TOKEN"}\n' > build/reports/sonar/status.json
+          fi
 
-      - name: Configure Pages
-        uses: actions/configure-pages@v5
-
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
-          path: build/pages-site
+          name: sonar-report
+          path: build/reports/sonar
 
-  deploy:
+  pages:
+    runs-on: ubuntu-latest
+    needs: [gradle-quality, mcp, interface, static-analysis, sonar]
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-latest
-    needs: build
     steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Download reports
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Build Pages site
+        run: |
+          python -m pip install markdown
+          python scripts/build-pages.py
+
+      - name: Collect generated evidence
+        shell: bash
+        run: |
+          copy_report() {
+            source="$1"
+            target="$2"
+            if [ -d "$source" ]; then
+              mkdir -p "$target"
+              cp -R "$source"/. "$target"/
+            fi
+          }
+
+          copy_report artifacts/gradle-quality-reports/reports/tests/unit build/pages-site/reports/unit
+          copy_report artifacts/gradle-quality-reports/reports/tests/integration build/pages-site/reports/integration
+          copy_report artifacts/gradle-quality-reports/reports/tests/interface build/pages-site/reports/interface/junit
+          copy_report artifacts/gradle-quality-reports/reports/cucumber build/pages-site/reports/bdd
+          copy_report artifacts/gradle-quality-reports/reports/jacoco/test/html build/pages-site/reports/coverage
+          copy_report artifacts/gradle-quality-reports/reports/pitest build/pages-site/reports/mutation
+          copy_report artifacts/gradle-quality-reports/dokka/html build/pages-site/api-docs
+          copy_report artifacts/interface-evidence/reports/playwright build/pages-site/reports/interface
+          copy_report artifacts/interface-evidence/test-results/playwright build/pages-site/reports/interface/videos
+          copy_report artifacts/static-analysis-reports/semgrep build/pages-site/reports/semgrep
+          copy_report artifacts/static-analysis-reports/snyk build/pages-site/reports/snyk
+          copy_report artifacts/sonar-report build/pages-site/reports/sonar
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/pages-site
+
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
