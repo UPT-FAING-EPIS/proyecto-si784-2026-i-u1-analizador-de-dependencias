@@ -14,12 +14,21 @@ Analiza dependencias vulnerables y desactualizadas sin salir de Visual Studio Co
 ## Requisito: instalar el CLI
 
 La extensión utiliza el ejecutable `depanalyzer`. Instálalo antes de iniciar el análisis.
+La versión 0.1.1 detecta automáticamente las interfaces actuales y anteriores del CLI.
 
 ### Windows
 
-Descarga `depanalyzer-windows-amd64.zip` desde
-[GitHub Releases](https://github.com/UPT-FAING-EPIS/proyecto-si784-2026-i-u1-analizador-de-dependencias/releases),
-descomprímelo y configura:
+Con Scoop:
+
+```powershell
+scoop bucket add andre https://github.com/andre-carbajal/scoop-bucket
+scoop install andre/depanalyzer
+scoop update depanalyzer
+```
+
+También puedes descargar `depanalyzer-windows-amd64.zip` desde
+[GitHub Releases](https://github.com/UPT-FAING-EPIS/proyecto-si784-2026-i-u2-analizador-de-dependencias-2/releases),
+descomprimirlo y configurar:
 
 ```json
 {

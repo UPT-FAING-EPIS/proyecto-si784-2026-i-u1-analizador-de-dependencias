@@ -2,7 +2,7 @@
   "name": "depanalyzer-vscode",
   "displayName": "DepAnalyzer Security",
   "description": "Detecta dependencias vulnerables y desactualizadas desde Visual Studio Code.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "DepAnalyzerUPT",
   "license": "MIT",
   "icon": "resources/depanalyzer.png",
