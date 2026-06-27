@@ -34,9 +34,22 @@ class ProjectAnalyzer(
         showCommandOutput: Boolean = false,
         onPartialReport: ((DependencyReport) -> Unit)? = null
     ): DependencyReport {
+        val analysisStartedAt = System.currentTimeMillis()
         ProgressTracker.advanceProgress("Detección")
         val type = projectDetector.detect(projectDir)
         val dirFile = projectDir.toFile()
+        val requestedMode = when (type) {
+            ProjectType.MAVEN -> if (disableMaven) AnalysisMode.STATIC else AnalysisMode.DYNAMIC
+            ProjectType.GRADLE_GROOVY,
+            ProjectType.GRADLE_KOTLIN -> if (disableGradle) AnalysisMode.STATIC else AnalysisMode.DYNAMIC
+            else -> AnalysisMode.STATIC
+        }
+        var actualMode = requestedMode
+        val analysisWarnings = mutableListOf<String>()
+        val resolutionModeListener: (AnalysisMode, String?) -> Unit = { mode, warning ->
+            actualMode = mode
+            warning?.let { analysisWarnings += it }
+        }
 
         ProgressTracker.logDetected("Proyecto detectado: $type")
 
@@ -49,7 +62,8 @@ class ProjectAnalyzer(
                     enableMaven = !disableMaven,
                     verbose = verbose,
                     timeoutSeconds = timeoutSeconds,
-                    showCommandOutput = showCommandOutput
+                    showCommandOutput = showCommandOutput,
+                    onResolutionMode = resolutionModeListener
                 )
 
                 val parsedDeps = mavenNodes.flatMap { node ->
@@ -65,7 +79,8 @@ class ProjectAnalyzer(
                     enableGradle = !disableGradle,
                     verbose = verbose,
                     timeoutSeconds = timeoutSeconds,
-                    showCommandOutput = showCommandOutput
+                    showCommandOutput = showCommandOutput,
+                    onResolutionMode = resolutionModeListener
                 )
 
                 val parsedDeps = gradleNodes.flatMap { node ->
@@ -81,7 +96,8 @@ class ProjectAnalyzer(
                     enableGradle = !disableGradle,
                     verbose = verbose,
                     timeoutSeconds = timeoutSeconds,
-                    showCommandOutput = showCommandOutput
+                    showCommandOutput = showCommandOutput,
+                    onResolutionMode = resolutionModeListener
                 )
 
                 val parsedDeps = gradleNodes.flatMap { node ->
@@ -242,10 +258,14 @@ class ProjectAnalyzer(
         ProgressTracker.advanceProgress("CVEs")
         val mavenDependencies = dependencies.filter { it.ecosystem == Ecosystem.MAVEN }
         val hasNonMaven = dependencies.any { it.ecosystem != Ecosystem.MAVEN }
+        val providersUsed = mutableListOf<String>()
+        val providerWarnings = mutableListOf<String>()
         val vulnerabilityMap = when (vulnerabilitySourceMode) {
             VulnerabilitySourceMode.OSS_ONLY -> {
                 try {
-                    ossIndexClient.getVulnerabilities(dependencies, failOnError = true)
+                    ossIndexClient.getVulnerabilities(dependencies, failOnError = true).also {
+                        providersUsed += "OSS_INDEX"
+                    }
                 } catch (e: Exception) {
                     throw IllegalStateException("[OSS] no se pudo obtener vulnerabilidades: ${e.message}", e)
                 }
@@ -253,11 +273,15 @@ class ProjectAnalyzer(
 
             VulnerabilitySourceMode.NVD_ONLY -> {
                 if (mavenDependencies.isEmpty()) {
-                    ProgressTracker.logWarning("NVD solo aplica a dependencias Maven. CVE analysis skipped.")
+                    val warning = "NVD solo aplica a dependencias Maven. CVE analysis skipped."
+                    ProgressTracker.logWarning(warning)
+                    providerWarnings += warning
                     emptyMap()
                 } else {
                     try {
-                        nvdClient.getVulnerabilities(mavenDependencies)
+                        nvdClient.getVulnerabilities(mavenDependencies).also {
+                            providersUsed += "NVD"
+                        }
                     } catch (e: Exception) {
                         throw IllegalStateException("[NVD] no se pudo obtener vulnerabilidades: ${e.message}", e)
                     }
@@ -267,13 +291,20 @@ class ProjectAnalyzer(
             VulnerabilitySourceMode.AUTO -> {
                 val ossVulns = runCatching {
                     ossIndexClient.getVulnerabilities(dependencies, failOnError = true)
+                }.onSuccess {
+                    providersUsed += "OSS_INDEX"
+                }.onFailure {
+                    providerWarnings += "OSS Index no disponible: ${it.message ?: it.javaClass.simpleName}"
                 }.getOrNull()
                 if (ossVulns != null) {
                     val nvdVulns = if (mavenDependencies.isNotEmpty()) {
                         runCatching {
                             ProgressTracker.logSecurity("Enriqueciendo con datos de NVD...")
                             nvdClient.getVulnerabilities(mavenDependencies)
+                        }.onSuccess {
+                            providersUsed += "NVD"
                         }.getOrElse {
+                            providerWarnings += "NVD no disponible: ${it.message ?: it.javaClass.simpleName}"
                             if (verbose) {
                                 System.err.println("  NVD enrichment failed: ${it.message}")
                             }
@@ -290,8 +321,13 @@ class ProjectAnalyzer(
                     runCatching {
                         if (mavenDependencies.isEmpty()) emptyMap() else nvdClient.getVulnerabilities(mavenDependencies)
                     }
+                        .onSuccess {
+                            if (mavenDependencies.isNotEmpty()) providersUsed += "NVD"
+                        }
                         .getOrElse {
-                            ProgressTracker.logWarning("No se pudo consultar OSS ni NVD. Vulnerability analysis skipped.")
+                            val warning = "No se pudo consultar OSS ni NVD. Vulnerability analysis skipped."
+                            providerWarnings += "NVD no disponible: ${it.message ?: it.javaClass.simpleName}"
+                            ProgressTracker.logWarning(warning)
                             if (verbose) {
                                 System.err.println("  Details OSS/NVD: ${it.message}")
                             }
@@ -348,7 +384,21 @@ class ProjectAnalyzer(
             directVulnerable = directVulnerable,
             transitiveVulnerable = transitiveVulnerable,
             vulnerabilityChains = chains,
-            dependencyTree = dependencyTree
+            dependencyTree = dependencyTree,
+            analysis = AnalysisMetadata(
+                requestedMode = requestedMode,
+                actualMode = actualMode,
+                projectType = type.name,
+                ecosystems = dependencies.map { it.ecosystem.name }.distinct().sorted(),
+                durationMs = System.currentTimeMillis() - analysisStartedAt,
+                warnings = analysisWarnings.distinct(),
+                providers = ProviderAnalysisMetadata(
+                    requested = vulnerabilitySourceMode.name,
+                    used = providersUsed.distinct(),
+                    warnings = providerWarnings.distinct(),
+                    statuses = providerStatuses(providersUsed, providerWarnings)
+                )
+            )
         )
         val finalReport = attachDirectSourceLocations(
             report = report,
@@ -358,6 +408,26 @@ class ProjectAnalyzer(
         )
         emitPartial(onPartialReport, finalReport)
         return finalReport
+    }
+
+    private fun providerStatuses(
+        providersUsed: List<String>,
+        warnings: List<String>
+    ): Map<String, String> = linkedMapOf(
+        "OSS_INDEX" to providerStatus("OSS_INDEX", providersUsed, warnings),
+        "NVD" to providerStatus("NVD", providersUsed, warnings)
+    )
+
+    private fun providerStatus(
+        provider: String,
+        providersUsed: List<String>,
+        warnings: List<String>
+    ): String {
+        val displayName = provider.replace('_', ' ')
+        if (provider in providersUsed) {
+            return if (warnings.any { it.contains(displayName, ignoreCase = true) }) "DEGRADED" else "AVAILABLE"
+        }
+        return if (warnings.any { it.contains(displayName, ignoreCase = true) }) "UNAVAILABLE" else "NOT_USED"
     }
 
     private fun emitPartial(

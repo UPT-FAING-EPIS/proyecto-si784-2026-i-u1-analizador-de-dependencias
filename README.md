@@ -14,6 +14,27 @@ y, opcionalmente, NIST NVD para ecosistema Maven.
 - Detecta vulnerabilidades CVE via OSS Index (Maven, npm y PyPI).
 - Enriquece CVEs con NIST NVD (CVSS v3 y metadata oficial) para Maven.
 - Incluye modo interactivo (`tui`) y modo de actualizacion asistida (`update`).
+- Expone un contrato JSON 1.1 para integraciones, con arbol, cadenas, modo real y estado de proveedores.
+
+## Contrato de integracion 2.2.0
+
+```bash
+depanalyzer --version
+depanalyzer capabilities --output json
+```
+
+`capabilities` permite detectar los esquemas y funciones disponibles sin interpretar la ayuda. El reporte 1.1
+incluye `dependencyTree`, `vulnerabilityChains`, ubicaciones, modo solicitado/real, ecosistemas, duracion,
+advertencias y estado de OSS Index/NVD. Los consumidores antiguos pueden seguir leyendo los campos del esquema 1.0.
+
+Para obtener paridad con la TUI:
+
+```bash
+depanalyzer analyze . --dynamic --show-chains --tree-expand all \
+  --output json --output-file report.json --quiet --progress-json
+```
+
+`--progress-json` escribe eventos NDJSON en `stderr`; el documento final permanece separado en el archivo indicado.
 
 ## Instalacion
 
@@ -213,6 +234,7 @@ Analiza un proyecto y genera reporte de dependencias vulnerables/desactualizadas
 | `--tree-expand MODE` | Modo de expansion: `collapsed`, `critical`, `high`, `medium`, `all` | `analyze`  | `all`             | `depanalyzer analyze . --tree-expand high`           |
 | `--timeout N`        | Timeout en segundos para descarga de dependencias                   | `analyze`  | `1800`            | `depanalyzer analyze . --timeout 900`                |
 | `--command-output`   | Muestra salida de comandos Maven/Gradle en dinamico                 | `analyze`  | `false`           | `depanalyzer analyze . --dynamic --command-output`   |
+| `--progress-json`    | Emite progreso NDJSON por `stderr` para integraciones               | `analyze`  | `false`           | `depanalyzer analyze . --progress-json`              |
 | `-h`, `--help`       | Ayuda del subcomando                                                | `analyze`  | -                 | `depanalyzer analyze --help`                         |
 
 Ejemplos:

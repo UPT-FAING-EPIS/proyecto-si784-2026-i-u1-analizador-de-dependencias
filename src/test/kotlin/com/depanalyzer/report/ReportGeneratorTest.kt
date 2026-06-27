@@ -1,7 +1,11 @@
 package com.depanalyzer.report
 
+import com.depanalyzer.core.graph.DependencyNode
+import com.depanalyzer.core.graph.VulnerabilityChain
+import tools.jackson.databind.json.JsonMapper
 import org.junit.jupiter.api.Test
 import java.time.Instant
+import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class ReportGeneratorTest {
@@ -105,5 +109,88 @@ class ReportGeneratorTest {
         assertTrue(!json.contains("problematicDescendants"))
         assertTrue(!json.contains("hasProblems"))
         assertTrue(!json.contains("depth"))
+    }
+
+    @Test
+    fun `serializes schema metadata tree chains and locations without cycles`() {
+        val vulnerability = Vulnerability(
+            cveId = "CVE-2026-0001",
+            severity = VulnerabilitySeverity.HIGH,
+            cvssScore = 8.1,
+            description = "Quoted \"description\"",
+            affectedDependency = AffectedDependency("org.example", "child", "1.0.0"),
+            source = VulnerabilitySource.BOTH,
+            retrievedAt = Instant.parse("2026-06-26T12:00:00Z"),
+            referenceUrl = "https://example.test/CVE-2026-0001"
+        )
+        val rootNode = DependencyNode("root", "org.example", "root", "2.0.0")
+        val childNode = DependencyNode(
+            "child",
+            "org.example",
+            "child",
+            "1.0.0",
+            parent = rootNode,
+            vulnerabilities = listOf(vulnerability)
+        )
+        rootNode.addChild(childNode)
+
+        val report = DependencyReport(
+            projectName = "full",
+            directVulnerable = listOf(
+                VulnerableDependency(
+                    groupId = "org.example",
+                    artifactId = "child",
+                    version = "1.0.0",
+                    vulnerabilities = listOf(vulnerability),
+                    sourceLocation = DependencySourceLocation("pom.xml", 10, 5, 20)
+                )
+            ),
+            vulnerabilityChains = listOf(
+                VulnerabilityChain(
+                    chain = listOf(rootNode, childNode),
+                    vulnerabilities = listOf(vulnerability),
+                    isShortestPath = true
+                )
+            ),
+            dependencyTree = listOf(
+                DependencyTreeNode(
+                    groupId = "org.example",
+                    artifactId = "root",
+                    currentVersion = "2.0.0",
+                    isDirectDependency = true,
+                    children = listOf(
+                        DependencyTreeNode(
+                            groupId = "org.example",
+                            artifactId = "child",
+                            currentVersion = "1.0.0",
+                            vulnerabilities = listOf(vulnerability)
+                        )
+                    )
+                )
+            ),
+            analysis = AnalysisMetadata(
+                requestedMode = AnalysisMode.DYNAMIC,
+                actualMode = AnalysisMode.DYNAMIC,
+                projectType = "MAVEN",
+                ecosystems = listOf("MAVEN"),
+                durationMs = 1250,
+                providers = ProviderAnalysisMetadata(
+                    requested = "AUTO",
+                    used = listOf("OSS_INDEX", "NVD"),
+                    statuses = mapOf("OSS_INDEX" to "AVAILABLE", "NVD" to "AVAILABLE")
+                )
+            )
+        )
+
+        val root = JsonMapper.builder().build().readTree(generator.toJson(report))
+
+        assertEquals("1.1", root.path("schemaVersion").asText())
+        assertEquals("pom.xml", root.path("directVulnerable").get(0).path("sourceLocation").path("file").asText())
+        assertEquals("child", root.path("vulnerabilityChains").get(0).path("chain").get(1).path("id").asText())
+        assertEquals("child", root.path("dependencyTree").get(0).path("children").get(0).path("artifactId").asText())
+        assertEquals("DYNAMIC", root.path("analysis").path("actualMode").asText())
+        assertEquals("MAVEN", root.path("analysis").path("ecosystems").get(0).asText())
+        assertEquals("OSS_INDEX", root.path("analysis").path("providers").path("used").get(0).asText())
+        assertEquals("AVAILABLE", root.path("analysis").path("providers").path("statuses").path("OSS_INDEX").asText())
     }
 }

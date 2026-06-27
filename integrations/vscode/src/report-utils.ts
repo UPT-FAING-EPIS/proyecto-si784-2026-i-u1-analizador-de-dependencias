@@ -1,4 +1,11 @@
-import type { DependencyReport, Finding, OutdatedDependency, VulnerableDependency } from "./models.js";
+import type {
+  DependencyReport,
+  Finding,
+  OutdatedDependency,
+  Vulnerability,
+  VulnerabilityChain,
+  VulnerableDependency
+} from "./models.js";
 
 const SUPPORTED_FILES = new Set([
   "pom.xml",
@@ -31,7 +38,7 @@ export function coordinate(groupId: string, artifactId: string, ecosystem = "MAV
   return `${groupId}:${artifactId}`;
 }
 
-export function flattenFindings(report: DependencyReport): Finding[] {
+export function flattenFindings(report: DependencyReport, projectPath?: string): Finding[] {
   const outdatedByKey = new Map<string, OutdatedDependency>();
   for (const dep of report.outdated ?? []) {
     outdatedByKey.set(keyFor(dep.groupId, dep.artifactId, dep.ecosystem), dep);
@@ -41,6 +48,7 @@ export function flattenFindings(report: DependencyReport): Finding[] {
   for (const dep of report.directVulnerable ?? []) {
     for (const vulnerability of dep.vulnerabilities ?? []) {
       const update = outdatedByKey.get(keyFor(dep.groupId, dep.artifactId, dep.ecosystem));
+      const chain = findVulnerabilityChain(report.vulnerabilityChains, dep, vulnerability);
       findings.push({
         kind: "vulnerability",
         groupId: dep.groupId,
@@ -52,13 +60,18 @@ export function flattenFindings(report: DependencyReport): Finding[] {
         severity: vulnerability.severity,
         vulnerability,
         sourceLocation: dep.sourceLocation,
-        dependencyChain: dep.dependencyChain
+        dependencyChain: chain?.chain.map(chainCoordinate) ?? dep.dependencyChain,
+        relationship: "direct",
+        directRoot: chain?.chain[0] ? chainCoordinate(chain.chain[0]) : undefined,
+        chainClassification: chain?.classification,
+        projectPath
       });
     }
   }
 
   for (const dep of report.transitiveVulnerable ?? []) {
     for (const vulnerability of dep.vulnerabilities ?? []) {
+      const chain = findVulnerabilityChain(report.vulnerabilityChains, dep, vulnerability);
       findings.push({
         kind: "vulnerability",
         groupId: dep.groupId,
@@ -68,7 +81,11 @@ export function flattenFindings(report: DependencyReport): Finding[] {
         ecosystem: dep.ecosystem,
         severity: vulnerability.severity,
         vulnerability,
-        dependencyChain: dep.dependencyChain
+        dependencyChain: chain?.chain.map(chainCoordinate) ?? dep.dependencyChain,
+        relationship: "transitive",
+        directRoot: chain?.chain[0] ? chainCoordinate(chain.chain[0]) : undefined,
+        chainClassification: chain?.classification,
+        projectPath
       });
     }
   }
@@ -82,7 +99,9 @@ export function flattenFindings(report: DependencyReport): Finding[] {
       currentVersion: dep.currentVersion,
       latestVersion: dep.latestVersion,
       ecosystem: dep.ecosystem,
-      sourceLocation: dep.sourceLocation
+      sourceLocation: dep.sourceLocation,
+      relationship: dep.sourceLocation ? "direct" : "unknown",
+      projectPath
     });
   }
 
@@ -92,9 +111,14 @@ export function flattenFindings(report: DependencyReport): Finding[] {
 export function summarizeFindings(findings: Finding[]): string {
   const critical = findings.filter((finding) => finding.severity === "CRITICAL").length;
   const high = findings.filter((finding) => finding.severity === "HIGH").length;
-  const vulnerable = findings.filter((finding) => finding.kind === "vulnerability").length;
+  const cves = findings.filter((finding) => finding.kind === "vulnerability").length;
+  const vulnerable = new Set(
+    findings
+      .filter((finding) => finding.kind === "vulnerability")
+      .map((finding) => `${finding.ecosystem ?? "MAVEN"}:${finding.coordinate}`)
+  ).size;
   const outdated = findings.filter((finding) => finding.kind === "outdated").length;
-  return `${critical} criticas, ${high} altas, ${vulnerable} vulnerabilidades, ${outdated} desactualizadas`;
+  return `${critical} criticas, ${high} altas, ${vulnerable} dependencias vulnerables, ${cves} CVE, ${outdated} desactualizadas`;
 }
 
 export function compareFindings(left: Finding, right: Finding): number {
@@ -109,4 +133,22 @@ export function keyFor(groupId: string, artifactId: string, ecosystem = "MAVEN")
 
 export function keyForVulnerable(dep: VulnerableDependency): string {
   return keyFor(dep.groupId, dep.artifactId, dep.ecosystem);
+}
+
+function findVulnerabilityChain(
+  chains: VulnerabilityChain[] | undefined,
+  dependency: VulnerableDependency,
+  vulnerability: Vulnerability
+): VulnerabilityChain | undefined {
+  return chains?.find((chain) => {
+    const target = chain.chain.at(-1);
+    return target?.groupId === dependency.groupId &&
+      target.artifactId === dependency.artifactId &&
+      target.version === dependency.version &&
+      chain.cveIds.includes(vulnerability.cveId);
+  });
+}
+
+function chainCoordinate(node: { groupId: string; artifactId: string; version: string; ecosystem?: string }): string {
+  return `${coordinate(node.groupId, node.artifactId, node.ecosystem)}:${node.version}`;
 }

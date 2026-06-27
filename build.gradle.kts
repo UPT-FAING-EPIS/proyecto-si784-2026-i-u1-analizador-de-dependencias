@@ -21,7 +21,7 @@ application {
 group = "com.depanalyzer"
 version = providers.gradleProperty("releaseVersion")
     .orElse(providers.environmentVariable("PROJECT_VERSION"))
-    .orElse("2.1.0-SNAPSHOT")
+    .orElse("2.2.0-SNAPSHOT")
     .map { it.removePrefix("v") }
     .get()
 
@@ -192,6 +192,7 @@ tasks.withType<JavaCompile> {
 }
 
 tasks.processResources {
+    inputs.property("projectVersion", project.version.toString())
     filesMatching("version.properties") {
         expand("version" to project.version)
     }

@@ -100,6 +100,7 @@ export function buildUpdateCenterErrorHtml(message: string, nonce: string, incom
         <p>${escapeHtml(message)}</p>
         <div class="actions">
           <button data-command="showOutput">Ver salida tecnica</button>
+          ${incompatible ? `<button data-command="upgradeCli">Actualizar CLI</button>` : ""}
           <button class="primary" data-command="reload">Intentar nuevamente</button>
         </div>
       </main>

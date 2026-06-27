@@ -2,15 +2,28 @@
 
 ## Analyze
 
-Use:
+Detect the installed contract first:
 
 ```text
-depanalyzer analyze <project-path> --output json --output-file - --quiet
+depanalyzer --version
+depanalyzer capabilities --output json
+```
+
+For CLI 2.2.0 and report schema 1.1 use:
+
+```text
+depanalyzer analyze <project-path> --dynamic --show-chains --tree-expand all \
+  --output json --output-file <temporary-file> --quiet --progress-json
 ```
 
 The JSON object has `schemaVersion`, `projectName`, `upToDate`, `outdated`,
 `directVulnerable`, `transitiveVulnerable`, `vulnerabilityChains`, and optional
-`dependencyTree`.
+`dependencyTree`. Schema 1.1 also includes `analysis` with requested/actual mode,
+project type, ecosystems, duration, warnings, and provider status. `STATIC_FALLBACK`
+must never be presented as a complete dynamic analysis.
+
+With `--progress-json`, NDJSON progress events are written to stderr. Keep stderr
+separate from the final JSON. Prefer a temporary output file for large reports.
 
 Direct dependencies can include `sourceLocation` with `file`, `line`, `startColumn`, and
 `endColumn`. Positions are 1-based and the end column is exclusive. A missing location means the

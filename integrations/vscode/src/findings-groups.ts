@@ -1,14 +1,12 @@
 import type { Finding } from "./models.js";
+import { isVersionResolved } from "./finding-presentation.js";
 import { compareFindings } from "./report-utils.js";
 
 export type FindingGroupId =
-  | "critical"
-  | "high"
-  | "medium"
-  | "low"
-  | "unknown"
+  | "direct"
+  | "transitive"
   | "outdated"
-  | "noLocation";
+  | "unresolved";
 
 export interface FindingGroup {
   id: FindingGroupId;
@@ -17,38 +15,28 @@ export interface FindingGroup {
   findings: Finding[];
 }
 
-const vulnerabilityGroups: Array<{
-  id: FindingGroupId;
-  severity: Finding["severity"];
-  label: string;
-}> = [
-  { id: "critical", severity: "CRITICAL", label: "Vulnerabilidades criticas" },
-  { id: "high", severity: "HIGH", label: "Vulnerabilidades altas" },
-  { id: "medium", severity: "MEDIUM", label: "Vulnerabilidades medias" },
-  { id: "low", severity: "LOW", label: "Vulnerabilidades bajas" },
-  { id: "unknown", severity: "UNKNOWN", label: "Vulnerabilidades sin severidad" }
-];
-
 export function buildFindingGroups(findings: Finding[]): FindingGroup[] {
-  const located = findings.filter((finding) => finding.sourceLocation);
-  const noLocation = findings.filter((finding) => !finding.sourceLocation);
   const groups: FindingGroup[] = [];
 
-  for (const group of vulnerabilityGroups) {
-    const items = located
-      .filter((finding) => finding.kind === "vulnerability" && finding.severity === group.severity)
-      .sort(compareFindings);
-    if (items.length > 0) groups.push(toGroup(group.id, group.label, items));
-  }
+  const direct = findings
+    .filter((finding) => finding.kind === "vulnerability" && finding.relationship === "direct")
+    .sort(compareFindings);
+  if (direct.length > 0) groups.push(toGroup("direct", "Vulnerabilidades directas", direct));
 
-  const outdated = located
-    .filter((finding) => finding.kind === "outdated")
+  const transitive = findings
+    .filter((finding) => finding.kind === "vulnerability" && finding.relationship === "transitive")
+    .sort(compareFindings);
+  if (transitive.length > 0) groups.push(toGroup("transitive", "Vulnerabilidades transitivas", transitive));
+
+  const outdated = findings
+    .filter((finding) => finding.kind === "outdated" && isVersionResolved(finding.currentVersion))
     .sort(compareFindings);
   if (outdated.length > 0) groups.push(toGroup("outdated", "Dependencias desactualizadas", outdated));
 
-  if (noLocation.length > 0) {
-    groups.push(toGroup("noLocation", "Sin ubicacion detectada", noLocation.sort(compareFindings)));
-  }
+  const unresolved = findings
+    .filter((finding) => finding.kind === "outdated" && !isVersionResolved(finding.currentVersion))
+    .sort(compareFindings);
+  if (unresolved.length > 0) groups.push(toGroup("unresolved", "Versiones no resueltas", unresolved));
 
   return groups;
 }
@@ -57,13 +45,16 @@ export function countFindings(findings: Finding[]): {
   critical: number;
   high: number;
   vulnerabilities: number;
+  vulnerableDependencies: number;
   outdated: number;
   noLocation: number;
 } {
+  const vulnerableFindings = findings.filter((finding) => finding.kind === "vulnerability");
   return {
     critical: findings.filter((finding) => finding.severity === "CRITICAL").length,
     high: findings.filter((finding) => finding.severity === "HIGH").length,
-    vulnerabilities: findings.filter((finding) => finding.kind === "vulnerability").length,
+    vulnerabilities: vulnerableFindings.length,
+    vulnerableDependencies: new Set(vulnerableFindings.map((finding) => finding.coordinate)).size,
     outdated: findings.filter((finding) => finding.kind === "outdated").length,
     noLocation: findings.filter((finding) => !finding.sourceLocation).length
   };

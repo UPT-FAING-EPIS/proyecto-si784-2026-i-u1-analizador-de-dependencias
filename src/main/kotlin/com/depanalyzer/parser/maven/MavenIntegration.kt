@@ -3,6 +3,7 @@ package com.depanalyzer.parser.maven
 import com.depanalyzer.cli.ProgressTracker
 import com.depanalyzer.core.graph.DependencyNode
 import com.depanalyzer.parser.PomDependencyParser
+import com.depanalyzer.report.AnalysisMode
 import java.io.File
 import kotlin.time.Duration.Companion.seconds
 
@@ -14,12 +15,15 @@ object MavenIntegration {
         enableMaven: Boolean = true,
         verbose: Boolean = false,
         timeoutSeconds: Long = 1800L,
-        showCommandOutput: Boolean = false
+        showCommandOutput: Boolean = false,
+        onResolutionMode: ((AnalysisMode, String?) -> Unit)? = null
     ): List<DependencyNode> {
         val pomFile = File(projectDir, "pom.xml")
 
         if (!enableMaven) {
-            ProgressTracker.logWarning("Análisis dinámico deshabilitado. Usando análisis estático (menos preciso).")
+            val warning = "Análisis dinámico deshabilitado. Usando análisis estático (menos preciso)."
+            ProgressTracker.logWarning(warning)
+            onResolutionMode?.invoke(AnalysisMode.STATIC, warning)
             if (verbose) {
                 System.err.println("[MavenIntegration] Offline mode enabled. Using static analysis (less precise).")
             }
@@ -28,7 +32,9 @@ object MavenIntegration {
 
         ProgressTracker.logSearching("Buscando Maven...")
         if (MavenDetector.findMavenCommand(projectDir, verbose) == null) {
-            ProgressTracker.logWarning("Maven no encontrado. Usando análisis estático (menos preciso).")
+            val warning = "Maven no encontrado. Usando análisis estático (menos preciso)."
+            ProgressTracker.logWarning(warning)
+            onResolutionMode?.invoke(AnalysisMode.STATIC_FALLBACK, warning)
             if (verbose) {
                 System.err.println("[MavenIntegration] No maven command found (checked: project wrapper and global mvn), falling back to static parsing")
             }
@@ -48,7 +54,9 @@ object MavenIntegration {
             }
         )
         if (treeOutput == null) {
-            ProgressTracker.logWarning("Análisis dinámico falló. Usando análisis estático (menos preciso).")
+            val warning = "Análisis dinámico falló. Usando análisis estático (menos preciso)."
+            ProgressTracker.logWarning(warning)
+            onResolutionMode?.invoke(AnalysisMode.STATIC_FALLBACK, warning)
             if (verbose) {
                 System.err.println("[MavenIntegration] Maven execution failed, timed out, or produced no output")
             }
@@ -60,6 +68,7 @@ object MavenIntegration {
         }
 
         val parsedNodes = MavenDependencyTreeParser.parse(treeOutput, verbose = verbose)
+        onResolutionMode?.invoke(AnalysisMode.DYNAMIC, null)
         ProgressTracker.logSuccess("${parsedNodes.size} dependencias encontradas")
         return parsedNodes
     }

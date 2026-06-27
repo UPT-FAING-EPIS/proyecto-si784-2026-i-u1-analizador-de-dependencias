@@ -39,5 +39,51 @@ test("flattens and summarizes report findings", () => {
   assert.equal(findings.length, 2);
   assert.equal(findings[0]?.severity, "CRITICAL");
   assert.equal(findings[0]?.latestVersion, "1.1.0");
-  assert.equal(summarizeFindings(findings), "1 criticas, 0 altas, 1 vulnerabilidades, 1 desactualizadas");
+  assert.equal(findings[0]?.relationship, "direct");
+  assert.equal(summarizeFindings(findings), "1 criticas, 0 altas, 1 dependencias vulnerables, 1 CVE, 1 desactualizadas");
+});
+
+test("joins a transitive CVE with its complete dependency chain", () => {
+  const findings = flattenFindings({
+    schemaVersion: "1.1",
+    projectName: "demo",
+    transitiveVulnerable: [{
+      groupId: "org.example",
+      artifactId: "transitive",
+      version: "2.0.0",
+      vulnerabilities: [{ cveId: "CVE-2026-0002", severity: "HIGH" }]
+    }],
+    vulnerabilityChains: [{
+      chain: [
+        {
+          id: "root",
+          groupId: "org.example",
+          artifactId: "root",
+          version: "1.0.0",
+          isDependencyManagement: false
+        },
+        {
+          id: "transitive",
+          groupId: "org.example",
+          artifactId: "transitive",
+          version: "2.0.0",
+          isDependencyManagement: false
+        }
+      ],
+      vulnerabilities: [{ cveId: "CVE-2026-0002", severity: "HIGH" }],
+      isShortestPath: true,
+      classification: "RUNTIME",
+      depth: 1,
+      cveIds: ["CVE-2026-0002"]
+    }]
+  }, "C:\\demo");
+
+  assert.equal(findings[0]?.relationship, "transitive");
+  assert.equal(findings[0]?.directRoot, "org.example:root:1.0.0");
+  assert.equal(findings[0]?.chainClassification, "RUNTIME");
+  assert.deepEqual(findings[0]?.dependencyChain, [
+    "org.example:root:1.0.0",
+    "org.example:transitive:2.0.0"
+  ]);
+  assert.equal(findings[0]?.projectPath, "C:\\demo");
 });

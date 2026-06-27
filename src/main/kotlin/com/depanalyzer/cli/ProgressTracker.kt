@@ -9,12 +9,19 @@ object ProgressTracker {
     @Volatile
     private var listener: ((String) -> Unit)? = null
 
+    @Volatile
+    private var eventListener: ((ProgressEvent) -> Unit)? = null
+
     fun setMuted(value: Boolean) {
         muted = value
     }
 
     fun setListener(value: ((String) -> Unit)?) {
         listener = value
+    }
+
+    fun setEventListener(value: ((ProgressEvent) -> Unit)?) {
+        eventListener = value
     }
 
     private fun emit(message: String) {
@@ -25,6 +32,15 @@ object ProgressTracker {
         progressSteps = steps
         currentStep = 0
         emit("Inicializando")
+        emitEvent(
+            ProgressEvent(
+                type = "started",
+                message = "Inicializando analisis",
+                phase = "Inicializando",
+                current = 0,
+                total = progressSteps.size
+            )
+        )
         renderProgress()
     }
 
@@ -39,6 +55,15 @@ object ProgressTracker {
         }
 
         emit(stepName)
+        emitEvent(
+            ProgressEvent(
+                type = "phase",
+                message = stepName,
+                phase = stepName,
+                current = currentStep,
+                total = progressSteps.size
+            )
+        )
         renderProgress(stepName)
     }
 
@@ -46,6 +71,15 @@ object ProgressTracker {
         if (progressSteps.isEmpty()) return
         currentStep = progressSteps.size
         emit("Completado")
+        emitEvent(
+            ProgressEvent(
+                type = "completed",
+                message = "Analisis completado",
+                phase = "Completado",
+                current = currentStep,
+                total = progressSteps.size
+            )
+        )
         renderProgress("Completado")
         progressSteps = emptyList()
         currentStep = 0
@@ -78,6 +112,7 @@ object ProgressTracker {
 
     fun logStep(message: String) {
         emit(message)
+        emitEvent(ProgressEvent(type = "command", message = message))
         if (!muted) {
             System.err.println(message)
         }
@@ -90,6 +125,7 @@ object ProgressTracker {
             message
         }
         emit(msg)
+        emitEvent(ProgressEvent(type = "success", message = msg))
         if (!muted) {
             System.err.println("✓ $msg")
         }
@@ -97,6 +133,7 @@ object ProgressTracker {
 
     fun logWarning(message: String) {
         emit(message)
+        emitEvent(ProgressEvent(type = "warning", message = message))
         if (!muted) {
             System.err.println("⚠️  $message")
         }
@@ -104,6 +141,7 @@ object ProgressTracker {
 
     fun logSearching(message: String) {
         emit(message)
+        emitEvent(ProgressEvent(type = "info", message = message))
         if (!muted) {
             System.err.println("🔍 $message")
         }
@@ -111,6 +149,7 @@ object ProgressTracker {
 
     fun logProcessing(message: String) {
         emit(message)
+        emitEvent(ProgressEvent(type = "info", message = message))
         if (!muted) {
             System.err.println("📦 $message")
         }
@@ -118,6 +157,7 @@ object ProgressTracker {
 
     fun logDetected(message: String) {
         emit(message)
+        emitEvent(ProgressEvent(type = "info", message = message))
         if (!muted) {
             System.err.println("📁 $message")
         }
@@ -125,6 +165,7 @@ object ProgressTracker {
 
     fun logBuilding(message: String) {
         emit(message)
+        emitEvent(ProgressEvent(type = "info", message = message))
         if (!muted) {
             System.err.println("🌳 $message")
         }
@@ -132,6 +173,7 @@ object ProgressTracker {
 
     fun logSecurity(message: String) {
         emit(message)
+        emitEvent(ProgressEvent(type = "info", message = message))
         if (!muted) {
             System.err.println("🛡️  $message")
         }
@@ -139,6 +181,7 @@ object ProgressTracker {
 
     fun logStart(message: String) {
         emit(message)
+        emitEvent(ProgressEvent(type = "info", message = message))
         if (!muted) {
             System.err.println("🚀 $message")
         }
@@ -148,5 +191,9 @@ object ProgressTracker {
         if (!muted) {
             System.err.println()
         }
+    }
+
+    private fun emitEvent(event: ProgressEvent) {
+        eventListener?.invoke(event)
     }
 }

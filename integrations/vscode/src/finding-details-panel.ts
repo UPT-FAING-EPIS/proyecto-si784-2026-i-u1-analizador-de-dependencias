@@ -38,6 +38,13 @@ export function buildFindingDetailsHtml(finding: Finding, nonce: string): string
     ? `${finding.sourceLocation.file}:${finding.sourceLocation.line}`
     : "Sin ubicacion exacta";
   const ecosystem = finding.ecosystem ?? "MAVEN";
+  const relationship = finding.relationship === "transitive"
+    ? "Transitiva"
+    : finding.relationship === "direct"
+      ? "Directa"
+      : "No determinada";
+  const directRoot = finding.directRoot ?? (finding.relationship === "direct" ? finding.coordinate : "No disponible");
+  const classification = finding.chainClassification ?? "No reportada";
 
   return `<!doctype html>
 <html lang="es">
@@ -228,6 +235,9 @@ export function buildFindingDetailsHtml(finding: Finding, nonce: string): string
         <div><span>Fuente</span><strong>${escapeHtml(source)}</strong></div>
         <div><span>Ubicacion</span><strong>${escapeHtml(location)}</strong></div>
         <div><span>Tipo de cambio</span><strong>${escapeHtml(changeKindLabel(changeKind))}</strong></div>
+        <div><span>Relacion</span><strong>${escapeHtml(relationship)}</strong></div>
+        <div><span>Raiz directa</span><strong>${escapeHtml(directRoot)}</strong></div>
+        <div><span>Clasificacion</span><strong>${escapeHtml(classification)}</strong></div>
       </div>
     </section>
 

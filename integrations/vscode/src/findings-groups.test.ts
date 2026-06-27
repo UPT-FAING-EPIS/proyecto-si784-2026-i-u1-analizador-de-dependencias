@@ -11,7 +11,8 @@ const locatedCritical: Finding = {
   currentVersion: "1.0.0",
   severity: "CRITICAL",
   vulnerability: { cveId: "CVE-2026-0001", severity: "CRITICAL" },
-  sourceLocation: { file: "build.gradle", line: 10, startColumn: 3, endColumn: 12 }
+  sourceLocation: { file: "build.gradle", line: 10, startColumn: 3, endColumn: 12 },
+  relationship: "direct"
 };
 
 const locatedOutdated: Finding = {
@@ -31,23 +32,24 @@ const noLocationHigh: Finding = {
   coordinate: "org.example:noloc",
   currentVersion: "1.0.0",
   severity: "HIGH",
-  vulnerability: { cveId: "CVE-2026-0002", severity: "HIGH" }
+  vulnerability: { cveId: "CVE-2026-0002", severity: "HIGH" },
+  relationship: "transitive"
 };
 
-test("groups located findings by risk before outdated dependencies", () => {
+test("groups direct vulnerabilities before outdated dependencies", () => {
   const groups = buildFindingGroups([locatedOutdated, locatedCritical]);
 
-  assert.deepEqual(groups.map((group) => group.id), ["critical", "outdated"]);
-  assert.equal(groups[0]?.label, "Vulnerabilidades criticas");
+  assert.deepEqual(groups.map((group) => group.id), ["direct", "outdated"]);
+  assert.equal(groups[0]?.label, "Vulnerabilidades directas");
   assert.equal(groups[0]?.findings[0]?.coordinate, "org.example:critical");
 });
 
-test("keeps findings without source location in a dedicated group", () => {
+test("keeps transitive vulnerabilities separate from ordinary updates", () => {
   const groups = buildFindingGroups([noLocationHigh, locatedOutdated]);
 
-  assert.deepEqual(groups.map((group) => group.id), ["outdated", "noLocation"]);
-  assert.equal(groups[1]?.label, "Sin ubicacion detectada");
-  assert.equal(groups[1]?.findings[0]?.severity, "HIGH");
+  assert.deepEqual(groups.map((group) => group.id), ["transitive", "outdated"]);
+  assert.equal(groups[0]?.label, "Vulnerabilidades transitivas");
+  assert.equal(groups[0]?.findings[0]?.severity, "HIGH");
 });
 
 test("counts summary values for visual state", () => {
@@ -57,6 +59,7 @@ test("counts summary values for visual state", () => {
     critical: 1,
     high: 1,
     vulnerabilities: 2,
+    vulnerableDependencies: 2,
     outdated: 1,
     noLocation: 1
   });

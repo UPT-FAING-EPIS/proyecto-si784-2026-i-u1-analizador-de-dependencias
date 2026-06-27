@@ -4,6 +4,7 @@ import com.depanalyzer.cli.ProgressTracker
 import com.depanalyzer.core.graph.DependencyNode
 import com.depanalyzer.parser.GradleGroovyDependencyParser
 import com.depanalyzer.parser.GradleKotlinDependencyParser
+import com.depanalyzer.report.AnalysisMode
 import java.io.File
 import kotlin.time.Duration.Companion.seconds
 
@@ -14,12 +15,15 @@ object GradleIntegration {
         enableGradle: Boolean = true,
         verbose: Boolean = false,
         timeoutSeconds: Long = 1800L,
-        showCommandOutput: Boolean = false
+        showCommandOutput: Boolean = false,
+        onResolutionMode: ((AnalysisMode, String?) -> Unit)? = null
     ): List<DependencyNode> {
         require(projectDir.exists() && projectDir.isDirectory) { "Project directory must exist: ${projectDir.absolutePath}" }
 
         if (!enableGradle) {
-            ProgressTracker.logWarning("Análisis dinámico deshabilitado. Usando análisis estático (menos preciso).")
+            val warning = "Análisis dinámico deshabilitado. Usando análisis estático (menos preciso)."
+            ProgressTracker.logWarning(warning)
+            onResolutionMode?.invoke(AnalysisMode.STATIC, warning)
             if (verbose) {
                 System.err.println("[GradleIntegration] Dynamic Gradle analysis disabled, using static parsing")
             }
@@ -29,7 +33,9 @@ object GradleIntegration {
         ProgressTracker.logSearching("Buscando Gradle...")
         val gradleCommand = GradleDetector.findGradleCommand(projectDir, verbose)
         if (gradleCommand == null) {
-            ProgressTracker.logWarning("Gradle no encontrado. Usando análisis estático (menos preciso).")
+            val warning = "Gradle no encontrado. Usando análisis estático (menos preciso)."
+            ProgressTracker.logWarning(warning)
+            onResolutionMode?.invoke(AnalysisMode.STATIC_FALLBACK, warning)
             if (verbose) {
                 System.err.println("[GradleIntegration] No gradle command found (checked: project wrapper and global gradle), falling back to static parsing")
             }
@@ -37,9 +43,9 @@ object GradleIntegration {
         }
 
         if (shouldSkipDynamicForNestedBuild(projectDir)) {
-            ProgressTracker.logWarning(
-                "Análisis dinámico no compatible en subproyecto Gradle sin settings propio. Usando análisis estático."
-            )
+            val warning = "Análisis dinámico no compatible en subproyecto Gradle sin settings propio. Usando análisis estático."
+            ProgressTracker.logWarning(warning)
+            onResolutionMode?.invoke(AnalysisMode.STATIC_FALLBACK, warning)
             if (verbose) {
                 System.err.println("[GradleIntegration] Nested build mismatch risk detected (global gradle + parent settings). Falling back to static parsing")
             }
@@ -66,7 +72,9 @@ object GradleIntegration {
                 ?: run {
                     val errorInfo = GradleCommandExecutor.getLastErrorInfo()
                     val errorReason = errorInfo?.let { " (${it.message})" } ?: ""
-                    ProgressTracker.logWarning("Análisis dinámico falló$errorReason. Usando análisis estático (menos preciso).")
+                    val warning = "Análisis dinámico falló$errorReason. Usando análisis estático (menos preciso)."
+                    ProgressTracker.logWarning(warning)
+                    onResolutionMode?.invoke(AnalysisMode.STATIC_FALLBACK, warning)
                     if (verbose) {
                         System.err.println("[GradleIntegration] Gradle command returned null, falling back to static parsing")
                         if (errorInfo != null) {
@@ -79,12 +87,15 @@ object GradleIntegration {
 
             val nodes = GradleDependencyTreeParser.parse(output, verbose)
             if (nodes.isEmpty()) {
-                ProgressTracker.logWarning("Análisis dinámico falló. Usando análisis estático (menos preciso).")
+                val warning = "Análisis dinámico falló. Usando análisis estático (menos preciso)."
+                ProgressTracker.logWarning(warning)
+                onResolutionMode?.invoke(AnalysisMode.STATIC_FALLBACK, warning)
                 if (verbose) {
                     System.err.println("[GradleIntegration] Gradle output parsing produced no nodes, falling back to static parsing")
                 }
                 fallbackToStaticParsing(projectDir, verbose)
             } else {
+                onResolutionMode?.invoke(AnalysisMode.DYNAMIC, null)
                 if (verbose) {
                     System.err.println("[GradleIntegration] Successfully parsed ${nodes.size} root dependencies from gradle")
                 }
@@ -92,7 +103,9 @@ object GradleIntegration {
                 nodes
             }
         } catch (e: Exception) {
-            ProgressTracker.logWarning("Análisis dinámico falló. Usando análisis estático (menos preciso).")
+            val warning = "Análisis dinámico falló. Usando análisis estático (menos preciso)."
+            ProgressTracker.logWarning(warning)
+            onResolutionMode?.invoke(AnalysisMode.STATIC_FALLBACK, warning)
             if (verbose) {
                 System.err.println("[GradleIntegration] Exception during Gradle analysis, falling back to static parsing")
                 e.printStackTrace(System.err)

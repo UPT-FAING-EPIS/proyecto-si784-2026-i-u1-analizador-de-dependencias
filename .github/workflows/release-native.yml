@@ -43,6 +43,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     needs:
       - test
+    env:
+      OSS_INDEX_TOKEN: ${{ secrets.OSS_INDEX_TOKEN }}
     strategy:
       fail-fast: false
       matrix:
@@ -111,13 +113,40 @@ jobs:
           Copy-Item "build/native/nativeCompile/depanalyzer.exe" "package/depanalyzer-windows-amd64/bin/depanalyzer.exe"
           Compress-Archive -Path "package/depanalyzer-windows-amd64" -DestinationPath "dist/${{ matrix.artifact_name }}" -Force
 
-      - name: Smoke test (Unix)
+      - name: Smoke test contract and dynamic report (Unix)
         if: runner.os != 'Windows'
-        run: ./build/native/nativeCompile/depanalyzer --help
+        run: |
+          VERSION="${PROJECT_VERSION#v}"
+          ./build/native/nativeCompile/depanalyzer --version | grep -F "$VERSION"
+          ./build/native/nativeCompile/depanalyzer capabilities --output json > capabilities.json
+          python -c "import json; d=json.load(open('capabilities.json')); assert d['cliVersion']=='$VERSION'; assert '1.1' in d['reportSchemas']; assert d['features']['report.dependencyTree']; assert d['features']['update.applyById']"
+          ./build/native/nativeCompile/depanalyzer --no-telemetry analyze src/test/resources/poms/simple \
+            --dynamic --show-chains --tree-expand all --oss --timeout 300 \
+            --output json --output-file smoke-report.json --quiet --progress-json \
+            2> smoke-progress.ndjson
+          python -c "import json; d=json.load(open('smoke-report.json')); assert d['schemaVersion']=='1.1'; assert d['analysis']['requestedMode']=='DYNAMIC'; assert 'dependencyTree' in d; events=[json.loads(x) for x in open('smoke-progress.ndjson') if x.startswith('{')]; assert events and events[-1]['type'] in ('completed','success')"
 
-      - name: Smoke test (Windows)
+      - name: Smoke test contract and dynamic report (Windows)
         if: runner.os == 'Windows'
-        run: .\build\native\nativeCompile\depanalyzer.exe --help
+        shell: pwsh
+        run: |
+          $version = $env:PROJECT_VERSION.TrimStart("v")
+          $actual = & .\build\native\nativeCompile\depanalyzer.exe --version
+          if ($actual -notmatch [regex]::Escape($version)) { throw "Unexpected version: $actual" }
+          & .\build\native\nativeCompile\depanalyzer.exe capabilities --output json | Set-Content capabilities.json
+          $capabilities = Get-Content capabilities.json -Raw | ConvertFrom-Json
+          if ($capabilities.cliVersion -ne $version -or $capabilities.reportSchemas -notcontains "1.1") {
+            throw "Invalid capabilities contract"
+          }
+          & .\build\native\nativeCompile\depanalyzer.exe --no-telemetry analyze src/test/resources/poms/simple `
+            --dynamic --show-chains --tree-expand all --oss --timeout 300 `
+            --output json --output-file smoke-report.json --quiet --progress-json `
+            2> smoke-progress.ndjson
+          if ($LASTEXITCODE -ne 0) { throw "Dynamic smoke analysis failed" }
+          $report = Get-Content smoke-report.json -Raw | ConvertFrom-Json
+          if ($report.schemaVersion -ne "1.1" -or $report.analysis.requestedMode -ne "DYNAMIC") {
+            throw "Invalid dynamic report"
+          }
 
       - name: Upload packaged binary
         uses: actions/upload-artifact@v4

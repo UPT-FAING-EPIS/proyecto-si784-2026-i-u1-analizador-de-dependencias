@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.0
+
+- Paridad de analisis preciso con la TUI mediante CLI 2.2.0 y reporte 1.1.
+- Progreso cancelable de 30 minutos, salida real de Maven/Gradle y reportes temporales grandes.
+- Resultados independientes para workspaces con varias carpetas y control de ejecuciones obsoletas.
+- Hallazgos separados en CVE directas/transitivas, desactualizadas y versiones no resueltas.
+- Arbol de dependencias jerarquico con filtros y cadenas completas en el panel de detalle.
+- Estado del modo, proveedores, advertencias, hora y duracion del ultimo analisis.
+- Compatibilidad limitada con CLI antiguo, actualizacion guiada y redeteccion de capacidades.
+
 ## 0.1.3
 
 - Centro visual para seleccionar y preparar una o varias actualizaciones.

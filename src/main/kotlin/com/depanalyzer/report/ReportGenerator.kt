@@ -13,11 +13,11 @@ class ReportGenerator {
         .build()
 
     fun toJson(report: DependencyReport): String {
-        return jsonMapper.writeValueAsString(report)
+        return JsonReportWriter().write(report)
     }
 
     fun toJsonVerbose(report: DependencyReport): String {
-        return jsonMapper.writeValueAsString(report)
+        return JsonReportWriter().write(report)
     }
 
     fun toJsonUpdatePlan(

@@ -5,7 +5,8 @@ Analiza dependencias vulnerables y desactualizadas sin salir de Visual Studio Co
 ## Funciones
 
 - Vista **DepAnalyzer** en la barra de actividad.
-- Resumen visual con grupos por severidad, dependencias desactualizadas y hallazgos sin ubicacion.
+- Vista **Hallazgos** separada en CVE directas, CVE transitivas, desactualizadas y no resueltas.
+- Vista **Arbol de dependencias** con jerarquia real y filtros por problemas, vulnerables o directas.
 - Panel de detalle con CVE, CVSS, impacto, recomendacion, informacion tecnica y colores por severidad.
 - Centro de actualizaciones para revisar y seleccionar cambios individuales o multiples.
 - Confirmacion, copia previa, comparacion visual y reanalisis despues de actualizar.
@@ -20,7 +21,8 @@ Analiza dependencias vulnerables y desactualizadas sin salir de Visual Studio Co
 ## Requisito: instalar el CLI
 
 La extensión utiliza el ejecutable `depanalyzer`. Instálalo antes de iniciar el análisis.
-La version 0.1.3 detecta automaticamente las capacidades del CLI y desactiva las acciones que una version antigua no soporte.
+La version 0.2.0 usa el contrato del CLI 2.2.0. Un CLI anterior funciona en modo limitado y mantiene
+deshabilitados el arbol, las cadenas o las actualizaciones que no pueda garantizar.
 
 ### Windows
 
@@ -33,7 +35,7 @@ scoop update depanalyzer
 ```
 
 También puedes descargar `depanalyzer-windows-amd64.zip` desde
-[GitHub Releases](https://github.com/UPT-FAING-EPIS/proyecto-si784-2026-i-u2-analizador-de-dependencias-2/releases),
+[GitHub Releases](https://github.com/UPT-FAING-EPIS/proyecto-si784-2026-i-u1-analizador-de-dependencias/releases),
 descomprimirlo y configurar:
 
 ```json
@@ -63,8 +65,9 @@ Si el ejecutable está disponible en `PATH`, no necesitas configurar `depanalyze
    `pyproject.toml` o `requirements.txt`.
 2. Selecciona el icono **DepAnalyzer** de la barra lateral.
 3. Ejecuta `DepAnalyzer: Analizar Workspace` desde la paleta de comandos.
-4. Revisa el resumen por severidad y abre cada hallazgo para ver su detalle.
-5. Usa las acciones del panel para saltar al archivo, revisar la CVE o preparar una actualizacion disponible.
+4. Elige **analisis preciso** para ejecutar Maven/Gradle y obtener las mismas versiones, transitivas y cadenas que la TUI.
+5. Revisa Hallazgos y el Arbol; abre cada CVE para ver la cadena completa y sus datos tecnicos.
+6. Usa las acciones del panel para saltar al archivo, revisar la CVE o preparar una actualizacion disponible.
 
 ## Actualizar dependencias
 
@@ -87,9 +90,17 @@ no aplicara un cambio cuyo origen no pueda verificar.
 | `depanalyzer.executablePath` | vacío | Ruta al ejecutable; vacío utiliza `PATH`. |
 | `depanalyzer.autoAnalyze` | `true` | Analiza al activar la extensión. |
 | `depanalyzer.scanOnSave` | `true` | Reanaliza al guardar manifiestos. |
-| `depanalyzer.dynamic` | `false` | Ejecuta análisis dinámico Maven/Gradle. |
+| `depanalyzer.analysisMode` | `ask` | `ask` pregunta una vez; `precise` ejecuta Maven/Gradle; `fast` usa archivos. |
+| `depanalyzer.dynamic` | `false` | Opcion anterior, conservada solo para migracion. |
 | `depanalyzer.provider` | `auto` | Selecciona `auto`, `oss` o `nvd`. |
-| `depanalyzer.timeoutSeconds` | `900` | Tiempo máximo del análisis. |
+| `depanalyzer.timeoutSeconds` | `1800` | Tiempo máximo del análisis. |
+
+El modo preciso solo se ejecuta en workspaces confiables y con consentimiento persistido. La notificacion permite
+cancelar, muestra las fases y las lineas de Maven/Gradle, y descarta resultados antiguos si empieza otro analisis.
+Los reportes se guardan temporalmente fuera del proyecto y se eliminan al terminar.
+
+Si aparece el banner de CLI antiguo, ejecuta **DepAnalyzer: Actualizar CLI** y luego
+**DepAnalyzer: Volver a Detectar CLI**.
 
 Para análisis completos se recomienda configurar `OSS_INDEX_TOKEN` y, opcionalmente, `NVD_API_KEY` en el entorno donde
 se inicia Visual Studio Code.

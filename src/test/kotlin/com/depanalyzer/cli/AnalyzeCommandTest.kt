@@ -88,7 +88,7 @@ class AnalyzeCommandTest {
 
         val jsonContent = Files.readString(outputFile)
         assertTrue(jsonContent.contains("\"projectName\" : \"json-project\""))
-        assertTrue(jsonContent.contains("\"schemaVersion\" : \"1.0\""))
+        assertTrue(jsonContent.contains("\"schemaVersion\" : \"1.1\""))
     }
 
     @Test
