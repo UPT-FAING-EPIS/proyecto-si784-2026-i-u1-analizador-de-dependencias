@@ -2,7 +2,8 @@ import path from "node:path";
 import * as vscode from "vscode";
 import { DepAnalyzerCli } from "./cli.js";
 import { FindingsProvider } from "./findings-view.js";
-import type { Finding, UpdateCandidate } from "./models.js";
+import { buildFindingDetailsHtml } from "./finding-details-panel.js";
+import type { Finding, FindingCommandArg, UpdateCandidate } from "./models.js";
 import { flattenFindings, isSupportedDependencyFile, keyFor } from "./report-utils.js";
 
 interface StoredFinding {
@@ -17,6 +18,7 @@ export class DepAnalyzerController implements vscode.HoverProvider, vscode.CodeA
   private lastProjectPath: string | undefined;
 
   constructor(
+    private readonly context: vscode.ExtensionContext,
     private readonly cli: DepAnalyzerCli,
     private readonly findingsProvider: FindingsProvider,
     private readonly output: vscode.OutputChannel
@@ -45,6 +47,58 @@ export class DepAnalyzerController implements vscode.HoverProvider, vscode.CodeA
     this.diagnostics.clear();
     this.storedFindings.clear();
     this.findingsProvider.clear();
+  }
+
+  showOutput(): void {
+    this.output.show();
+  }
+
+  async openFindingLocation(arg?: FindingCommandArg): Promise<void> {
+    if (!arg?.finding.sourceLocation) {
+      void vscode.window.showInformationMessage("Este hallazgo no tiene una ubicacion exacta en archivo.");
+      return;
+    }
+    const location = arg.finding.sourceLocation;
+    const uri = vscode.Uri.file(path.join(arg.projectPath, location.file));
+    const document = await vscode.workspace.openTextDocument(uri);
+    const editor = await vscode.window.showTextDocument(document);
+    const range = new vscode.Range(
+      location.line - 1,
+      location.startColumn - 1,
+      location.line - 1,
+      Math.max(location.startColumn, location.endColumn - 1)
+    );
+    editor.selection = new vscode.Selection(range.start, range.end);
+    editor.revealRange(range, vscode.TextEditorRevealType.InCenter);
+  }
+
+  async openFindingReference(arg?: FindingCommandArg): Promise<void> {
+    const url = arg?.finding.vulnerability?.referenceUrl;
+    if (!url) {
+      void vscode.window.showInformationMessage("Este hallazgo no incluye una referencia externa.");
+      return;
+    }
+    await vscode.env.openExternal(vscode.Uri.parse(url));
+  }
+
+  showFindingDetails(arg?: FindingCommandArg): void {
+    if (!arg) {
+      void vscode.window.showWarningMessage("Selecciona un hallazgo de DepAnalyzer para ver el detalle.");
+      return;
+    }
+    const panel = vscode.window.createWebviewPanel(
+      "depanalyzer.findingDetails",
+      `DepAnalyzer: ${arg.finding.coordinate}`,
+      vscode.ViewColumn.Beside,
+      { enableScripts: true }
+    );
+    const nonce = String(Date.now());
+    panel.webview.html = buildFindingDetailsHtml(arg.finding, nonce, Boolean(arg.finding.latestVersion));
+    panel.webview.onDidReceiveMessage((message: { command?: string }) => {
+      if (message.command === "openLocation") void this.openFindingLocation(arg);
+      if (message.command === "openReference") void this.openFindingReference(arg);
+      if (message.command === "applyUpdate") void this.applyUpdate(arg);
+    });
   }
 
   provideHover(
@@ -95,7 +149,12 @@ export class DepAnalyzerController implements vscode.HoverProvider, vscode.CodeA
     return actions;
   }
 
-  async applyUpdate(candidate: UpdateCandidate): Promise<void> {
+  async applyUpdate(candidateOrArg?: UpdateCandidate | FindingCommandArg): Promise<void> {
+    const candidate = toUpdateCandidate(candidateOrArg);
+    if (!candidate) {
+      void vscode.window.showWarningMessage("Este hallazgo no tiene una actualizacion sugerida.");
+      return;
+    }
     const choice = await vscode.window.showWarningMessage(
       `Aplicar actualizacion ${candidate.groupId}:${candidate.artifactId} ${candidate.currentVersion} -> ${candidate.newVersion}?`,
       { modal: true },
@@ -137,11 +196,12 @@ export class DepAnalyzerController implements vscode.HoverProvider, vscode.CodeA
       );
       const findings = flattenFindings(report);
       this.updateDiagnostics(projectPath, findings);
-      this.findingsProvider.refresh(findings);
+      this.findingsProvider.refresh(findings, projectPath);
       void vscode.window.setStatusBarMessage(`DepAnalyzer: ${findings.length} hallazgos`, 5000);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       this.output.appendLine(message);
+      this.findingsProvider.showError(message);
       void vscode.window.showErrorMessage(`DepAnalyzer: ${message}`);
     }
   }
@@ -183,6 +243,23 @@ export class DepAnalyzerController implements vscode.HoverProvider, vscode.CodeA
     return (this.storedFindings.get(uri.toString()) ?? [])
       .filter((stored) => stored.range.contains(position));
   }
+}
+
+function toUpdateCandidate(candidateOrArg?: UpdateCandidate | FindingCommandArg): UpdateCandidate | undefined {
+  if (!candidateOrArg) return undefined;
+  if ("finding" in candidateOrArg) {
+    const finding = candidateOrArg.finding;
+    if (!finding.latestVersion) return undefined;
+    return {
+      projectPath: candidateOrArg.projectPath,
+      groupId: finding.groupId,
+      artifactId: finding.artifactId,
+      currentVersion: finding.currentVersion,
+      newVersion: finding.latestVersion,
+      ecosystem: finding.ecosystem
+    };
+  }
+  return candidateOrArg;
 }
 
 function diagnosticMessage(finding: Finding): string {

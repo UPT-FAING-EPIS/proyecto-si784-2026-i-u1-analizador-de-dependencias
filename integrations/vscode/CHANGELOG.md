@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.2
+
+- Vista lateral agrupada por severidad, dependencias desactualizadas y hallazgos sin ubicacion.
+- Panel visual de detalle para vulnerabilidades y actualizaciones.
+- Acciones desde la vista para abrir archivo, ver referencia CVE y aplicar actualizaciones sugeridas.
+- Estados vacios y errores mas claros.
+- Icono monocromatico optimizado para la barra de actividad de VS Code.
+
 ## 0.1.1
 
 - Compatibilidad automática con versiones del CLI que generan `dependency-report.json`.

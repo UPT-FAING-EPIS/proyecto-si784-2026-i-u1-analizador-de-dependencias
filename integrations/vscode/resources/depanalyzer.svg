@@ -1,6 +1,4 @@
-<svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="DepAnalyzer">
-  <rect width="128" height="128" rx="24" fill="#1f2937"/>
-  <path d="M64 18 104 34v30c0 26-16 42-40 52-24-10-40-26-40-52V34l40-16Z" fill="#2563eb"/>
-  <path d="M64 29 94 41v24c0 18-10 31-30 40-20-9-30-22-30-40V41l30-12Z" fill="#dbeafe"/>
-  <path d="M49 66h30M49 80h21M49 52h30" stroke="#1e3a8a" stroke-width="8" stroke-linecap="round"/>
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="DepAnalyzer">
+  <path d="M12 2.75 19 5.7v5.45c0 4.65-2.62 7.95-7 10.1-4.38-2.15-7-5.45-7-10.1V5.7l7-2.95Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+  <path d="M9 9h6M9 12h6M9 15h3.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
 </svg>

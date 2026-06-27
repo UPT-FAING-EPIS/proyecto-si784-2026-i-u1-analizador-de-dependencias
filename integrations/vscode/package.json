@@ -2,7 +2,7 @@
   "name": "depanalyzer-vscode",
   "displayName": "DepAnalyzer Security",
   "description": "Detecta dependencias vulnerables y desactualizadas desde Visual Studio Code.",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "publisher": "DepAnalyzerUPT",
   "license": "MIT",
   "icon": "resources/depanalyzer.png",
@@ -52,7 +52,11 @@
     "workspaceContains:requirements.txt",
     "onCommand:depanalyzer.scanWorkspace",
     "onCommand:depanalyzer.scanFile",
-    "onCommand:depanalyzer.clearDiagnostics"
+    "onCommand:depanalyzer.clearDiagnostics",
+    "onCommand:depanalyzer.showFindingDetails",
+    "onCommand:depanalyzer.openFindingLocation",
+    "onCommand:depanalyzer.openFindingReference",
+    "onCommand:depanalyzer.showOutput"
   ],
   "contributes": {
     "commands": [
@@ -72,10 +76,29 @@
         "category": "DepAnalyzer"
       },
       {
+        "command": "depanalyzer.showFindingDetails",
+        "title": "DepAnalyzer: Ver Detalle",
+        "category": "DepAnalyzer"
+      },
+      {
+        "command": "depanalyzer.openFindingLocation",
+        "title": "DepAnalyzer: Abrir Archivo",
+        "category": "DepAnalyzer"
+      },
+      {
+        "command": "depanalyzer.openFindingReference",
+        "title": "DepAnalyzer: Ver Referencia CVE",
+        "category": "DepAnalyzer"
+      },
+      {
+        "command": "depanalyzer.showOutput",
+        "title": "DepAnalyzer: Mostrar Salida",
+        "category": "DepAnalyzer"
+      },
+      {
         "command": "depanalyzer.applyUpdate",
         "title": "DepAnalyzer: Aplicar Actualizacion",
-        "category": "DepAnalyzer",
-        "enablement": "false"
+        "category": "DepAnalyzer"
       }
     ],
     "configuration": {
@@ -149,6 +172,28 @@
           "command": "depanalyzer.clearDiagnostics",
           "when": "view == depanalyzer.findings",
           "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "depanalyzer.showFindingDetails",
+          "when": "view == depanalyzer.findings && viewItem =~ /depanalyzer\\.finding/",
+          "group": "inline@1"
+        },
+        {
+          "command": "depanalyzer.openFindingLocation",
+          "when": "view == depanalyzer.findings && viewItem =~ /location/",
+          "group": "inline@2"
+        },
+        {
+          "command": "depanalyzer.openFindingReference",
+          "when": "view == depanalyzer.findings && viewItem =~ /reference/",
+          "group": "navigation@1"
+        },
+        {
+          "command": "depanalyzer.applyUpdate",
+          "when": "view == depanalyzer.findings && viewItem =~ /update/",
+          "group": "navigation@2"
         }
       ]
     }

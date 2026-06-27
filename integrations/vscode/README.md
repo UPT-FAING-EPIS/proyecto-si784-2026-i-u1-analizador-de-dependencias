@@ -5,6 +5,9 @@ Analiza dependencias vulnerables y desactualizadas sin salir de Visual Studio Co
 ## Funciones
 
 - Vista **DepAnalyzer** en la barra de actividad.
+- Resumen visual con grupos por severidad, dependencias desactualizadas y hallazgos sin ubicacion.
+- Panel de detalle al hacer clic en vulnerabilidades, con CVE, CVSS, version actual, version sugerida y acciones.
+- Accesos rapidos para abrir el archivo afectado, ver la referencia CVE o aplicar una actualizacion cuando el CLI lo permita.
 - Análisis manual, automático y al guardar.
 - Diagnósticos directamente en archivos Maven, Gradle, npm y Python.
 - Información de CVE, severidad, CVSS y enlaces desde el editor.
@@ -14,7 +17,7 @@ Analiza dependencias vulnerables y desactualizadas sin salir de Visual Studio Co
 ## Requisito: instalar el CLI
 
 La extensión utiliza el ejecutable `depanalyzer`. Instálalo antes de iniciar el análisis.
-La versión 0.1.1 detecta automáticamente las interfaces actuales y anteriores del CLI.
+La versión 0.1.2 detecta automáticamente las interfaces actuales y anteriores del CLI.
 
 ### Windows
 
@@ -57,7 +60,8 @@ Si el ejecutable está disponible en `PATH`, no necesitas configurar `depanalyze
    `pyproject.toml` o `requirements.txt`.
 2. Selecciona el icono **DepAnalyzer** de la barra lateral.
 3. Ejecuta `DepAnalyzer: Analizar Workspace` desde la paleta de comandos.
-4. Revisa la vista de dependencias y los diagnósticos del editor.
+4. Revisa el resumen por severidad y abre cada hallazgo para ver su detalle.
+5. Usa las acciones del panel para saltar al archivo, revisar la CVE o aplicar una actualizacion disponible.
 
 ## Configuración
 

@@ -69,6 +69,11 @@ export interface UpdateCandidate {
   ecosystem?: string;
 }
 
+export interface FindingCommandArg {
+  projectPath: string;
+  finding: Finding;
+}
+
 export interface Finding {
   kind: "vulnerability" | "outdated";
   groupId: string;
