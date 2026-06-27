@@ -1,10 +1,29 @@
+import { randomBytes } from "node:crypto";
 import path from "node:path";
 import * as vscode from "vscode";
 import { DepAnalyzerCli } from "./cli.js";
+import { canSafelyUpdate, displayVersion } from "./finding-presentation.js";
 import { FindingsProvider } from "./findings-view.js";
 import { buildFindingDetailsHtml } from "./finding-details-panel.js";
-import type { Finding, FindingCommandArg, UpdateCandidate } from "./models.js";
+import type {
+  Finding,
+  FindingCommandArg,
+  UpdateCandidate,
+  UpdatePlan,
+  UpdateSuggestion
+} from "./models.js";
 import { flattenFindings, isSupportedDependencyFile, keyFor } from "./report-utils.js";
+import {
+  buildUpdateCenterErrorHtml,
+  buildUpdateCenterHtml,
+  buildUpdateCenterLoadingHtml,
+  buildUpdateCenterSuccessHtml
+} from "./update-center-panel.js";
+import {
+  coordinateFor,
+  findMatchingSuggestion,
+  isSuggestionSafe
+} from "./update-presentation.js";
 
 interface StoredFinding {
   finding: Finding;
@@ -92,13 +111,89 @@ export class DepAnalyzerController implements vscode.HoverProvider, vscode.CodeA
       vscode.ViewColumn.Beside,
       { enableScripts: true }
     );
-    const nonce = String(Date.now());
-    panel.webview.html = buildFindingDetailsHtml(arg.finding, nonce, Boolean(arg.finding.latestVersion));
+    const nonce = createNonce();
+    panel.webview.html = buildFindingDetailsHtml(arg.finding, nonce);
     panel.webview.onDidReceiveMessage((message: { command?: string }) => {
       if (message.command === "openLocation") void this.openFindingLocation(arg);
       if (message.command === "openReference") void this.openFindingReference(arg);
-      if (message.command === "applyUpdate") void this.applyUpdate(arg);
+      if (message.command === "prepareUpdate") void this.manageUpdates(arg);
+      if (message.command === "enableDynamic") {
+        void this.enableDynamicAndReanalyze(arg.projectPath).then((changed) => {
+          if (changed) panel.dispose();
+        });
+      }
     });
+  }
+
+  async manageUpdates(candidateOrArg?: UpdateCandidate | FindingCommandArg): Promise<void> {
+    const projectPath = candidateOrArg?.projectPath ??
+      this.lastProjectPath ??
+      vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    if (!projectPath) {
+      void vscode.window.showWarningMessage("DepAnalyzer necesita un workspace abierto.");
+      return;
+    }
+
+    const candidate = toUpdateCandidate(candidateOrArg);
+    const panel = vscode.window.createWebviewPanel(
+      "depanalyzer.updateCenter",
+      "DepAnalyzer: Centro de actualizaciones",
+      vscode.ViewColumn.Beside,
+      { enableScripts: true }
+    );
+    let currentPlan: UpdatePlan | undefined;
+
+    const renderPlan = async (): Promise<void> => {
+      panel.webview.html = buildUpdateCenterLoadingHtml(createNonce());
+      currentPlan = undefined;
+      try {
+        const capabilities = await this.cli.capabilitiesFor(projectPath);
+        if (!capabilities.updatePlan || !capabilities.applyById) {
+          panel.webview.html = buildUpdateCenterErrorHtml(
+            "La version instalada del CLI no permite preparar y aplicar cambios seguros por identificador. Actualiza DepAnalyzer CLI y vuelve a intentarlo.",
+            createNonce(),
+            true
+          );
+          return;
+        }
+
+        const plan = await vscode.window.withProgress(
+          {
+            location: vscode.ProgressLocation.Notification,
+            title: "DepAnalyzer: preparando centro de actualizaciones"
+          },
+          () => this.cli.planUpdates(projectPath)
+        );
+        currentPlan = plan;
+        const preselected = findMatchingSuggestion(plan.suggestions, candidate);
+        panel.webview.html = buildUpdateCenterHtml(plan, createNonce(), preselected?.id);
+      } catch (error) {
+        const message = errorMessage(error);
+        this.output.appendLine(message);
+        panel.webview.html = buildUpdateCenterErrorHtml(message, createNonce());
+      }
+    };
+
+    panel.webview.onDidReceiveMessage(async (message: UpdateCenterMessage) => {
+      if (message.command === "showOutput") {
+        this.showOutput();
+        return;
+      }
+      if (message.command === "reload") {
+        await renderPlan();
+        return;
+      }
+      if (message.command === "enableDynamic") {
+        const changed = await this.enableDynamicAndReanalyze(projectPath);
+        if (changed) await renderPlan();
+        return;
+      }
+      if (message.command === "apply" && currentPlan) {
+        await this.applySelectedUpdates(panel, projectPath, currentPlan, message.ids);
+      }
+    });
+
+    await renderPlan();
   }
 
   provideHover(
@@ -124,21 +219,21 @@ export class DepAnalyzerController implements vscode.HoverProvider, vscode.CodeA
     const actions: vscode.CodeAction[] = [];
     for (const stored of this.findingsAt(document.uri, range.start)) {
       const finding = stored.finding;
-      if (!finding.latestVersion) continue;
+      if (!canSafelyUpdate(finding)) continue;
 
       const action = new vscode.CodeAction(
         `Actualizar ${finding.coordinate} a ${finding.latestVersion}`,
         vscode.CodeActionKind.QuickFix
       );
       action.command = {
-        command: "depanalyzer.applyUpdate",
+        command: "depanalyzer.manageUpdates",
         title: action.title,
         arguments: [{
           projectPath: stored.projectPath,
           groupId: finding.groupId,
           artifactId: finding.artifactId,
           currentVersion: finding.currentVersion,
-          newVersion: finding.latestVersion,
+          newVersion: finding.latestVersion!,
           ecosystem: finding.ecosystem
         } satisfies UpdateCandidate]
       };
@@ -150,41 +245,7 @@ export class DepAnalyzerController implements vscode.HoverProvider, vscode.CodeA
   }
 
   async applyUpdate(candidateOrArg?: UpdateCandidate | FindingCommandArg): Promise<void> {
-    const candidate = toUpdateCandidate(candidateOrArg);
-    if (!candidate) {
-      void vscode.window.showWarningMessage("Este hallazgo no tiene una actualizacion sugerida.");
-      return;
-    }
-    const choice = await vscode.window.showWarningMessage(
-      `Aplicar actualizacion ${candidate.groupId}:${candidate.artifactId} ${candidate.currentVersion} -> ${candidate.newVersion}?`,
-      { modal: true },
-      "Aplicar"
-    );
-    if (choice !== "Aplicar") return;
-
-    const plan = await vscode.window.withProgress(
-      { location: vscode.ProgressLocation.Notification, title: "DepAnalyzer: preparando actualizacion" },
-      () => this.cli.planUpdates(candidate.projectPath)
-    );
-    const suggestion = plan.suggestions.find((item) =>
-      item.groupId === candidate.groupId &&
-      item.artifactId === candidate.artifactId &&
-      item.currentVersion === candidate.currentVersion &&
-      item.newVersion === candidate.newVersion &&
-      (!candidate.ecosystem || item.ecosystem === candidate.ecosystem)
-    );
-    if (!suggestion) {
-      void vscode.window.showWarningMessage("La sugerencia ya no esta disponible. Reejecuta el analisis.");
-      return;
-    }
-
-    const output = await vscode.window.withProgress(
-      { location: vscode.ProgressLocation.Notification, title: "DepAnalyzer: aplicando actualizacion" },
-      () => this.cli.applyUpdate(candidate.projectPath, suggestion.id)
-    );
-    this.output.appendLine(output);
-    void vscode.window.showInformationMessage("Actualizacion aplicada por DepAnalyzer.");
-    await this.analyzeProject(candidate.projectPath);
+    await this.manageUpdates(candidateOrArg);
   }
 
   private async analyzeProject(projectPath: string): Promise<void> {
@@ -243,23 +304,150 @@ export class DepAnalyzerController implements vscode.HoverProvider, vscode.CodeA
     return (this.storedFindings.get(uri.toString()) ?? [])
       .filter((stored) => stored.range.contains(position));
   }
+
+  private async applySelectedUpdates(
+    panel: vscode.WebviewPanel,
+    projectPath: string,
+    plan: UpdatePlan,
+    rawIds: unknown
+  ): Promise<void> {
+    const ids = Array.isArray(rawIds)
+      ? [...new Set(rawIds.filter((id): id is string => typeof id === "string" && id.trim().length > 0))]
+      : [];
+    const selected = ids
+      .map((id) => plan.suggestions.find((suggestion) => suggestion.id === id))
+      .filter((suggestion): suggestion is UpdateSuggestion => suggestion !== undefined);
+
+    if (ids.length === 0 || selected.length !== ids.length || selected.some((item) => !isSuggestionSafe(item))) {
+      void vscode.window.showWarningMessage(
+        "La seleccion contiene una actualizacion no valida. Actualiza el plan y vuelve a elegir los cambios."
+      );
+      return;
+    }
+
+    const choice = await vscode.window.showWarningMessage(
+      `DepAnalyzer modificara ${path.basename(plan.buildFile)} con ${selected.length} ${selected.length === 1 ? "actualizacion" : "actualizaciones"}.`,
+      {
+        modal: true,
+        detail: selected
+          .map((item) => `${coordinateFor(item)}: ${item.currentVersion} -> ${item.newVersion}`)
+          .join("\n")
+      },
+      "Aplicar seleccionadas"
+    );
+    if (choice !== "Aplicar seleccionadas") return;
+
+    try {
+      const buildFile = resolveBuildFile(projectPath, plan.buildFile);
+      const snapshot = await this.createBuildFileSnapshot(buildFile);
+      const output = await vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: `DepAnalyzer: aplicando ${selected.length} actualizaciones`
+        },
+        () => this.cli.applyUpdates(projectPath, selected.map((item) => item.id))
+      );
+      this.output.appendLine("");
+      this.output.appendLine(`Actualizaciones solicitadas: ${selected.length}`);
+      this.output.appendLine(output);
+
+      panel.webview.html = buildUpdateCenterSuccessHtml(selected, createNonce());
+      await vscode.commands.executeCommand(
+        "vscode.diff",
+        snapshot,
+        buildFile,
+        `DepAnalyzer: antes y despues de ${path.basename(plan.buildFile)}`
+      );
+      await this.analyzeProject(projectPath);
+      void vscode.window.showInformationMessage(
+        `DepAnalyzer proceso ${selected.length} ${selected.length === 1 ? "actualizacion" : "actualizaciones"} y volvio a analizar el proyecto.`
+      );
+    } catch (error) {
+      const message = errorMessage(error);
+      this.output.appendLine(message);
+      const stale = /desactualizad|stale|no encontrad/i.test(message);
+      panel.webview.html = buildUpdateCenterErrorHtml(
+        stale
+          ? "El plan cambio antes de aplicarse. No se modifico el proyecto; genera un plan nuevo."
+          : message,
+        createNonce()
+      );
+    }
+  }
+
+  private async enableDynamicAndReanalyze(projectPath: string): Promise<boolean> {
+    const choice = await vscode.window.showInformationMessage(
+      "El analisis dinamico usa Maven o Gradle para resolver las versiones reales. Puede tardar mas que el analisis normal.",
+      { modal: true },
+      "Activar y reanalizar"
+    );
+    if (choice !== "Activar y reanalizar") return false;
+
+    const projectUri = vscode.Uri.file(projectPath);
+    const folder = vscode.workspace.getWorkspaceFolder(projectUri);
+    const config = vscode.workspace.getConfiguration("depanalyzer", folder?.uri);
+    await config.update(
+      "dynamic",
+      true,
+      folder ? vscode.ConfigurationTarget.WorkspaceFolder : vscode.ConfigurationTarget.Workspace
+    );
+    await this.analyzeProject(projectPath);
+    return true;
+  }
+
+  private async createBuildFileSnapshot(buildFile: vscode.Uri): Promise<vscode.Uri> {
+    const snapshotDirectory = vscode.Uri.joinPath(this.context.globalStorageUri, "update-snapshots");
+    await vscode.workspace.fs.createDirectory(snapshotDirectory);
+    const snapshot = vscode.Uri.joinPath(
+      snapshotDirectory,
+      `${Date.now()}-before-${path.basename(buildFile.fsPath)}`
+    );
+    const contents = await vscode.workspace.fs.readFile(buildFile);
+    await vscode.workspace.fs.writeFile(snapshot, contents);
+    return snapshot;
+  }
+}
+
+interface UpdateCenterMessage {
+  command?: "apply" | "reload" | "showOutput" | "enableDynamic";
+  ids?: unknown;
 }
 
 function toUpdateCandidate(candidateOrArg?: UpdateCandidate | FindingCommandArg): UpdateCandidate | undefined {
   if (!candidateOrArg) return undefined;
   if ("finding" in candidateOrArg) {
     const finding = candidateOrArg.finding;
-    if (!finding.latestVersion) return undefined;
+    if (!canSafelyUpdate(finding)) return undefined;
     return {
       projectPath: candidateOrArg.projectPath,
       groupId: finding.groupId,
       artifactId: finding.artifactId,
       currentVersion: finding.currentVersion,
-      newVersion: finding.latestVersion,
+      newVersion: finding.latestVersion!,
       ecosystem: finding.ecosystem
     };
   }
   return candidateOrArg;
+}
+
+function resolveBuildFile(projectPath: string, buildFile: string): vscode.Uri {
+  const projectRoot = path.resolve(projectPath);
+  const resolvedBuildFile = path.isAbsolute(buildFile)
+    ? path.resolve(buildFile)
+    : path.resolve(projectRoot, buildFile);
+  const relative = path.relative(projectRoot, resolvedBuildFile);
+  if (relative.startsWith(`..${path.sep}`) || relative === ".." || path.isAbsolute(relative)) {
+    throw new Error("El CLI devolvio un archivo de compilacion fuera del workspace.");
+  }
+  return vscode.Uri.file(resolvedBuildFile);
+}
+
+function createNonce(): string {
+  return randomBytes(16).toString("base64");
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function diagnosticMessage(finding: Finding): string {
@@ -280,7 +468,7 @@ function diagnosticSeverity(finding: Finding): vscode.DiagnosticSeverity {
 
 function formatFindingMarkdown(finding: Finding): string {
   if (finding.kind === "outdated") {
-    return `**${finding.coordinate}** esta desactualizada\n\nVersion actual: \`${finding.currentVersion}\`\n\nVersion disponible: \`${finding.latestVersion}\``;
+    return `**${finding.coordinate}** esta desactualizada\n\nVersion actual: \`${displayVersion(finding.currentVersion)}\`\n\nVersion disponible: \`${displayVersion(finding.latestVersion)}\``;
   }
   const vuln = finding.vulnerability;
   const lines = [

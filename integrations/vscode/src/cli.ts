@@ -4,6 +4,7 @@ import * as vscode from "vscode";
 import spawn from "cross-spawn";
 import { detectCliCapabilities, type CliCapabilities } from "./cli-capabilities.js";
 import type { DependencyReport, UpdatePlan } from "./models.js";
+import { buildApplyUpdateArgs } from "./update-presentation.js";
 
 const MAX_OUTPUT_BYTES = 10 * 1024 * 1024;
 const LEGACY_REPORT_NAME = "dependency-report.json";
@@ -18,7 +19,7 @@ export class DepAnalyzerCli {
 
   async analyze(projectPath: string): Promise<DependencyReport> {
     const config = vscode.workspace.getConfiguration("depanalyzer");
-    const capabilities = await this.getCapabilities(projectPath);
+    const capabilities = await this.capabilitiesFor(projectPath);
     const args = ["--no-telemetry", "analyze", projectPath, "--output", "json"];
     if (capabilities.analyzeStdout) {
       args.push("--output-file", "-", "--quiet");
@@ -42,7 +43,7 @@ export class DepAnalyzerCli {
   }
 
   async planUpdates(projectPath: string): Promise<UpdatePlan> {
-    const capabilities = await this.getCapabilities(projectPath);
+    const capabilities = await this.capabilitiesFor(projectPath);
     if (!capabilities.updatePlan) {
       throw new Error(
         "La version instalada de DepAnalyzer no permite planes de actualizacion. " +
@@ -61,19 +62,31 @@ export class DepAnalyzerCli {
   }
 
   async applyUpdate(projectPath: string, suggestionId: string): Promise<string> {
-    const capabilities = await this.getCapabilities(projectPath);
+    return this.applyUpdates(projectPath, [suggestionId]);
+  }
+
+  async applyUpdates(projectPath: string, suggestionIds: string[]): Promise<string> {
+    const capabilities = await this.capabilitiesFor(projectPath);
     if (!capabilities.applyById) {
       throw new Error("La version instalada de DepAnalyzer no permite aplicar sugerencias por identificador.");
     }
     const config = vscode.workspace.getConfiguration("depanalyzer");
-    const args = ["--no-telemetry", "update", projectPath, "--apply-id", suggestionId];
-    if (config.get<boolean>("dynamic", false)) args.push("--dynamic");
+    const args = buildApplyUpdateArgs(
+      projectPath,
+      suggestionIds,
+      config.get<boolean>("dynamic", false)
+    );
 
     const result = await this.run(args, projectPath);
     if (result.exitCode !== 0) {
       throw new Error(`DepAnalyzer update fallo con codigo ${result.exitCode}: ${result.stderr.trim()}`);
     }
     return result.stdout.trim();
+  }
+
+  capabilitiesFor(cwd: string): Promise<CliCapabilities> {
+    this.capabilities ??= this.detectCapabilities(cwd);
+    return this.capabilities;
   }
 
   private async analyzeWithLegacyCli(args: string[], projectPath: string): Promise<DependencyReport> {
@@ -100,11 +113,6 @@ export class DepAnalyzerCli {
         await rm(reportPath, { force: true });
       }
     }
-  }
-
-  private getCapabilities(cwd: string): Promise<CliCapabilities> {
-    this.capabilities ??= this.detectCapabilities(cwd);
-    return this.capabilities;
   }
 
   private async detectCapabilities(cwd: string): Promise<CliCapabilities> {

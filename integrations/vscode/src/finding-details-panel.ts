@@ -1,10 +1,23 @@
+import {
+  buildFindingNarrative,
+  canSafelyUpdate,
+  changeKindLabel,
+  displayVersion,
+  findingTone,
+  isVersionResolved,
+  versionChangeKind
+} from "./finding-presentation.js";
 import type { Finding } from "./models.js";
 
-export function buildFindingDetailsHtml(finding: Finding, nonce: string, canUpdate: boolean): string {
+export function buildFindingDetailsHtml(finding: Finding, nonce: string): string {
   const severity = finding.severity ?? (finding.kind === "outdated" ? "OUTDATED" : "UNKNOWN");
+  const tone = findingTone(finding);
   const cve = finding.vulnerability?.cveId ?? "Sin CVE";
   const cvss = finding.vulnerability?.cvssScore !== undefined ? String(finding.vulnerability.cvssScore) : "N/D";
-  const description = finding.vulnerability?.description?.trim() || defaultDescription(finding);
+  const narrative = buildFindingNarrative(finding);
+  const currentVersion = displayVersion(finding.currentVersion);
+  const suggestedVersion = displayVersion(finding.latestVersion);
+  const changeKind = versionChangeKind(finding.currentVersion, finding.latestVersion);
   const chain = finding.dependencyChain?.length
     ? `<div class="chain">${finding.dependencyChain.map(escapeHtml).join("<span>→</span>")}</div>`
     : `<p class="muted">No se reporto cadena transitiva para este hallazgo.</p>`;
@@ -14,9 +27,17 @@ export function buildFindingDetailsHtml(finding: Finding, nonce: string, canUpda
   const locationButton = finding.sourceLocation
     ? `<button data-command="openLocation">Abrir archivo</button>`
     : "";
-  const updateButton = canUpdate
-    ? `<button class="primary" data-command="applyUpdate">Aplicar actualizacion</button>`
+  const updateButton = canSafelyUpdate(finding)
+    ? `<button class="primary" data-command="prepareUpdate">Preparar actualizacion</button>`
     : "";
+  const dynamicButton = !isVersionResolved(finding.currentVersion)
+    ? `<button class="primary" data-command="enableDynamic">Activar analisis dinamico y reanalizar</button>`
+    : "";
+  const source = finding.vulnerability?.source ?? "DepAnalyzer";
+  const location = finding.sourceLocation
+    ? `${finding.sourceLocation.file}:${finding.sourceLocation.line}`
+    : "Sin ubicacion exacta";
+  const ecosystem = finding.ecosystem ?? "MAVEN";
 
   return `<!doctype html>
 <html lang="es">
@@ -27,12 +48,20 @@ export function buildFindingDetailsHtml(finding: Finding, nonce: string, canUpda
   <title>Detalle DepAnalyzer</title>
   <style>
     body {
+      --tone: #8b5cf6;
+      --tone-soft: color-mix(in srgb, var(--tone) 14%, var(--vscode-editor-background));
       margin: 0;
       padding: 28px;
       color: var(--vscode-foreground);
       background: var(--vscode-editor-background);
       font-family: var(--vscode-font-family);
     }
+    body[data-tone="critical"] { --tone: #ef4444; }
+    body[data-tone="high"] { --tone: #f97316; }
+    body[data-tone="medium"] { --tone: #eab308; }
+    body[data-tone="low"] { --tone: #3b82f6; }
+    body[data-tone="unknown"] { --tone: #94a3b8; }
+    body[data-tone="outdated"] { --tone: #8b5cf6; }
     .shell {
       max-width: 860px;
       margin: 0 auto;
@@ -41,7 +70,8 @@ export function buildFindingDetailsHtml(finding: Finding, nonce: string, canUpda
       border: 1px solid var(--vscode-panel-border);
       border-radius: 18px;
       padding: 24px;
-      background: linear-gradient(135deg, rgba(124, 58, 237, .22), rgba(37, 99, 235, .12));
+      border-top: 4px solid var(--tone);
+      background: linear-gradient(135deg, rgba(124, 58, 237, .24), var(--tone-soft));
     }
     .eyebrow {
       color: var(--vscode-descriptionForeground);
@@ -59,8 +89,8 @@ export function buildFindingDetailsHtml(finding: Finding, nonce: string, canUpda
       padding: 5px 10px;
       border-radius: 999px;
       font-weight: 700;
-      background: var(--vscode-badge-background);
-      color: var(--vscode-badge-foreground);
+      background: var(--tone);
+      color: #fff;
     }
     .grid {
       display: grid;
@@ -73,6 +103,7 @@ export function buildFindingDetailsHtml(finding: Finding, nonce: string, canUpda
       border-radius: 14px;
       padding: 14px;
       background: var(--vscode-sideBar-background);
+      border-top: 3px solid var(--tone);
     }
     .metric strong {
       display: block;
@@ -85,6 +116,30 @@ export function buildFindingDetailsHtml(finding: Finding, nonce: string, canUpda
       border-radius: 14px;
       padding: 18px;
       background: var(--vscode-editorWidget-background);
+    }
+    .section.accent {
+      background: var(--tone-soft);
+      border-left: 4px solid var(--tone);
+    }
+    .section h2 {
+      margin-top: 0;
+      font-size: 18px;
+    }
+    .technical {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 10px;
+    }
+    .technical div {
+      padding: 10px 12px;
+      border-radius: 10px;
+      background: var(--vscode-sideBar-background);
+    }
+    .technical span {
+      display: block;
+      margin-bottom: 5px;
+      color: var(--vscode-descriptionForeground);
+      font-size: 12px;
     }
     .actions {
       display: flex;
@@ -130,7 +185,7 @@ export function buildFindingDetailsHtml(finding: Finding, nonce: string, canUpda
     }
   </style>
 </head>
-<body>
+<body data-tone="${escapeHtml(tone)}">
   <main class="shell">
     <section class="hero">
       <div class="eyebrow">DepAnalyzer Security</div>
@@ -140,19 +195,40 @@ export function buildFindingDetailsHtml(finding: Finding, nonce: string, canUpda
         ${locationButton}
         ${referenceButton}
         ${updateButton}
+        ${dynamicButton}
       </div>
     </section>
 
     <section class="grid" aria-label="Resumen del hallazgo">
       <div class="metric"><span class="muted">CVE</span><strong>${escapeHtml(cve)}</strong></div>
       <div class="metric"><span class="muted">CVSS</span><strong>${escapeHtml(cvss)}</strong></div>
-      <div class="metric"><span class="muted">Actual</span><strong>${escapeHtml(finding.currentVersion)}</strong></div>
-      <div class="metric"><span class="muted">Sugerida</span><strong>${escapeHtml(finding.latestVersion ?? "N/D")}</strong></div>
+      <div class="metric"><span class="muted">Actual</span><strong>${escapeHtml(currentVersion)}</strong></div>
+      <div class="metric"><span class="muted">Sugerida</span><strong>${escapeHtml(suggestedVersion)}</strong></div>
+    </section>
+
+    <section class="section accent">
+      <h2>Que encontramos</h2>
+      <p>${escapeHtml(narrative.summary)}</p>
     </section>
 
     <section class="section">
-      <h2>Descripcion</h2>
-      <p>${escapeHtml(description)}</p>
+      <h2>Por que importa</h2>
+      <p>${escapeHtml(narrative.impact)}</p>
+    </section>
+
+    <section class="section">
+      <h2>Que recomendamos</h2>
+      <p>${escapeHtml(narrative.recommendation)}</p>
+    </section>
+
+    <section class="section">
+      <h2>Informacion tecnica</h2>
+      <div class="technical">
+        <div><span>Ecosistema</span><strong>${escapeHtml(ecosystem)}</strong></div>
+        <div><span>Fuente</span><strong>${escapeHtml(source)}</strong></div>
+        <div><span>Ubicacion</span><strong>${escapeHtml(location)}</strong></div>
+        <div><span>Tipo de cambio</span><strong>${escapeHtml(changeKindLabel(changeKind))}</strong></div>
+      </div>
     </section>
 
     <section class="section">
@@ -169,13 +245,6 @@ export function buildFindingDetailsHtml(finding: Finding, nonce: string, canUpda
   </script>
 </body>
 </html>`;
-}
-
-function defaultDescription(finding: Finding): string {
-  if (finding.kind === "outdated") {
-    return `La dependencia puede actualizarse de ${finding.currentVersion} a ${finding.latestVersion ?? "una version mas reciente"}.`;
-  }
-  return "DepAnalyzer detecto una vulnerabilidad en esta dependencia. Revisa la referencia y prioriza la actualizacion.";
 }
 
 function escapeHtml(value: string): string {

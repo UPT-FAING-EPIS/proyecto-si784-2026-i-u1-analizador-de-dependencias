@@ -1,4 +1,5 @@
 import * as vscode from "vscode";
+import { canSafelyUpdate, displayVersion } from "./finding-presentation.js";
 import type { Finding, FindingCommandArg } from "./models.js";
 import { buildFindingGroups, countFindings, type FindingGroup, type FindingGroupId } from "./findings-groups.js";
 import { summarizeFindings } from "./report-utils.js";
@@ -145,9 +146,9 @@ class StateItem extends vscode.TreeItem {
 function formatDescription(finding: Finding): string {
   if (finding.kind === "vulnerability") {
     const cve = finding.vulnerability?.cveId ?? "CVE";
-    return `${finding.severity ?? "UNKNOWN"} ${cve}`;
+    return `${severityLabel(finding.severity)} ${cve}`;
   }
-  return `${finding.currentVersion} -> ${finding.latestVersion}`;
+  return `${displayVersion(finding.currentVersion)} -> ${displayVersion(finding.latestVersion)}`;
 }
 
 function tooltipFor(finding: Finding): string {
@@ -156,6 +157,9 @@ function tooltipFor(finding: Finding): string {
     lines.push(`${finding.sourceLocation.file}:${finding.sourceLocation.line}`);
   } else {
     lines.push("Sin ubicacion exacta en archivo");
+  }
+  if (finding.kind === "outdated" && !canSafelyUpdate(finding)) {
+    lines.push("Activa el analisis dinamico para verificar la version actual");
   }
   return lines.join("\n");
 }
@@ -179,6 +183,18 @@ function contextFor(finding: Finding): string {
   if (finding.kind === "vulnerability") parts.push("vulnerability");
   if (finding.sourceLocation) parts.push("location");
   if (finding.vulnerability?.referenceUrl) parts.push("reference");
-  if (finding.latestVersion) parts.push("update");
+  if (canSafelyUpdate(finding)) parts.push("update");
   return parts.join(".");
+}
+
+function severityLabel(severity?: Finding["severity"]): string {
+  switch (severity) {
+    case "CRITICAL": return "CRITICA";
+    case "HIGH": return "ALTA";
+    case "MEDIUM": return "MEDIA";
+    case "LOW": return "BAJA";
+    case "UNKNOWN":
+    default:
+      return "SIN CLASIFICAR";
+  }
 }

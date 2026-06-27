@@ -51,6 +51,7 @@ export interface UpdateSuggestion {
   reason: string;
   targetType: string;
   ecosystem: string;
+  viaDirectCoordinate?: string;
 }
 
 export interface UpdatePlan {

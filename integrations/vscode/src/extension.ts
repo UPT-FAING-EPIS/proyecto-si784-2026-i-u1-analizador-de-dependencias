@@ -26,13 +26,14 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("depanalyzer.showFindingDetails", (arg) => controller.showFindingDetails(arg)),
     vscode.commands.registerCommand("depanalyzer.openFindingLocation", (arg) => controller.openFindingLocation(arg)),
     vscode.commands.registerCommand("depanalyzer.openFindingReference", (arg) => controller.openFindingReference(arg)),
-    vscode.commands.registerCommand("depanalyzer.applyUpdate", (candidate?: UpdateCandidate) => {
-      if (!candidate) {
-        void vscode.window.showWarningMessage("Usa el Quick Fix de DepAnalyzer sobre un diagnostico para aplicar actualizaciones.");
-        return undefined;
-      }
-      return controller.applyUpdate(candidate);
-    }),
+    vscode.commands.registerCommand(
+      "depanalyzer.manageUpdates",
+      (candidate?: UpdateCandidate) => controller.manageUpdates(candidate)
+    ),
+    vscode.commands.registerCommand(
+      "depanalyzer.applyUpdate",
+      (candidate?: UpdateCandidate) => controller.applyUpdate(candidate)
+    ),
     vscode.languages.registerHoverProvider({ scheme: "file" }, controller),
     vscode.languages.registerCodeActionsProvider({ scheme: "file" }, controller, {
       providedCodeActionKinds: [vscode.CodeActionKind.QuickFix]

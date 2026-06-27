@@ -6,8 +6,11 @@ Analiza dependencias vulnerables y desactualizadas sin salir de Visual Studio Co
 
 - Vista **DepAnalyzer** en la barra de actividad.
 - Resumen visual con grupos por severidad, dependencias desactualizadas y hallazgos sin ubicacion.
-- Panel de detalle al hacer clic en vulnerabilidades, con CVE, CVSS, version actual, version sugerida y acciones.
-- Accesos rapidos para abrir el archivo afectado, ver la referencia CVE o aplicar una actualizacion cuando el CLI lo permita.
+- Panel de detalle con CVE, CVSS, impacto, recomendacion, informacion tecnica y colores por severidad.
+- Centro de actualizaciones para revisar y seleccionar cambios individuales o multiples.
+- Confirmacion, copia previa, comparacion visual y reanalisis despues de actualizar.
+- Accesos rapidos para abrir el archivo afectado, ver la referencia CVE o preparar una actualizacion.
+- Ayuda para activar el analisis dinamico cuando una version no puede detectarse.
 - Análisis manual, automático y al guardar.
 - Diagnósticos directamente en archivos Maven, Gradle, npm y Python.
 - Información de CVE, severidad, CVSS y enlaces desde el editor.
@@ -17,7 +20,7 @@ Analiza dependencias vulnerables y desactualizadas sin salir de Visual Studio Co
 ## Requisito: instalar el CLI
 
 La extensión utiliza el ejecutable `depanalyzer`. Instálalo antes de iniciar el análisis.
-La versión 0.1.2 detecta automáticamente las interfaces actuales y anteriores del CLI.
+La version 0.1.3 detecta automaticamente las capacidades del CLI y desactiva las acciones que una version antigua no soporte.
 
 ### Windows
 
@@ -61,7 +64,21 @@ Si el ejecutable está disponible en `PATH`, no necesitas configurar `depanalyze
 2. Selecciona el icono **DepAnalyzer** de la barra lateral.
 3. Ejecuta `DepAnalyzer: Analizar Workspace` desde la paleta de comandos.
 4. Revisa el resumen por severidad y abre cada hallazgo para ver su detalle.
-5. Usa las acciones del panel para saltar al archivo, revisar la CVE o aplicar una actualizacion disponible.
+5. Usa las acciones del panel para saltar al archivo, revisar la CVE o preparar una actualizacion disponible.
+
+## Actualizar dependencias
+
+1. Selecciona el icono **Gestionar actualizaciones** en la cabecera de la vista DepAnalyzer o ejecuta
+   `DepAnalyzer: Gestionar Actualizaciones`.
+2. Espera a que el CLI genere un plan actualizado. Este paso no modifica archivos.
+3. Marca explicitamente las propuestas que deseas aplicar. Las correcciones de seguridad aparecen primero.
+4. Revisa la version actual, la version nueva, el tipo de cambio y el archivo afectado.
+5. Pulsa **Aplicar seleccionadas** y confirma la lista exacta de cambios.
+6. DepAnalyzer crea un backup, aplica los IDs aprobados, abre una comparacion y vuelve a analizar el workspace.
+
+Tambien puedes abrir una dependencia y usar **Preparar actualizacion** para llegar al centro con esa propuesta
+preseleccionada. Si aparece **Version no detectada**, activa el analisis dinamico antes de actualizar; la extension
+no aplicara un cambio cuyo origen no pueda verificar.
 
 ## Configuración
 
